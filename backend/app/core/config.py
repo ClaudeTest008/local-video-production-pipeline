@@ -11,7 +11,14 @@ class Settings(BaseSettings):
     app_name: str = "Local Video Production Pipeline"
     host: str = "127.0.0.1"
     port: int = 8321
-    cors_origins: list[str] = ["http://localhost:3000", "tauri://localhost"]
+    # Web dev server + Tauri app origins (tauri://localhost on macOS/Linux,
+    # http(s)://tauri.localhost on Windows WebView2)
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ]
 
     # SQLite default (local-first); set LVPP_DATABASE_URL for PostgreSQL.
     database_url: str = "sqlite:///./data/studio.db"

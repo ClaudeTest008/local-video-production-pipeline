@@ -30,20 +30,20 @@ examples/       Example ComfyUI workflows, sample project, seeds
 Prereqs: Python ≥ 3.11, Node ≥ 20, (optional) Rust toolchain for the desktop build, (optional) FFmpeg on PATH, (optional) local [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and [Ollama](https://ollama.com).
 
 ```bash
-# Backend
+# Backend (from the repo root)
 cd backend
 python -m venv .venv
-.venv/Scripts/activate          # Windows; use source .venv/bin/activate elsewhere
+source .venv/bin/activate                    # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-python seed.py                  # optional: sample data
-uvicorn app.main:app --reload   # http://localhost:8321  (docs at /docs)
+python seed.py                               # optional: sample data
+uvicorn app.main:app --reload --port 8321    # http://localhost:8321  (docs at /docs)
 
-# Web app
+# Web app (new shell, from the repo root)
 npm install
-npm run dev:web                 # http://localhost:3000
+npm run dev:web                              # http://localhost:3000
 
-# Desktop (requires Rust)
-cd apps/desktop && cargo tauri dev
+# Desktop (new shell, from the repo root; requires Rust)
+cd apps/desktop && npm install && npm run dev
 ```
 
 ## Documentation

@@ -71,7 +71,7 @@ alembic upgrade head
 
 ## Web app: server build vs static export
 
-Two modes, selected by the `LVPP_DESKTOP` environment variable at build time (`apps/web/next.config.ts`):
+Two modes, selected at build time (`apps/web/next.config.ts`): static export activates when `LVPP_DESKTOP` is set **or** when the build runs under the Tauri CLI (which sets `TAURI_ENV_PLATFORM` for its hook commands — so `tauri build` picks export mode automatically):
 
 **Server build (default)** — for running the web UI in a browser:
 
@@ -99,7 +99,7 @@ Installer bundling is **deliberately disabled**: `apps/desktop/src-tauri/tauri.c
 1. Install the Rust toolchain (stable) and `cd apps/desktop && npm install`.
 2. Generate icons: `npx tauri icon path/to/icon.png` (writes `src-tauri/icons/`).
 3. Set `"bundle": { "active": true }` in `tauri.conf.json` (plus platform targets as needed).
-4. Resolve the static-export caveat above — `beforeBuildCommand` runs `npm run build:web` and the shell serves `apps/web/out/`.
+4. Resolve the static-export caveat above — `beforeBuildCommand` runs `npm run build:web` under the Tauri CLI (`TAURI_ENV_PLATFORM` set, so export mode is automatic) and the shell serves `apps/web/out/`.
 5. `npm run build` (i.e. `tauri build`) to produce the platform installer.
 
 Treat desktop packaging as roadmap, not a supported release path today.

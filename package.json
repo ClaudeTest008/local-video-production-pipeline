@@ -1,0 +1,19 @@
+{
+  "name": "local-video-production-pipeline",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local-first AI-powered content production studio for YouTube and creator platforms",
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace apps/web",
+    "build:web": "npm run build --workspace apps/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

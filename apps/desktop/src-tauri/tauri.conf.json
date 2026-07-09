@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LVPP Studio",
+  "version": "0.1.0",
+  "identifier": "dev.lvpp.studio",
+  "build": {
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm --prefix ../.. run dev:web",
+    "frontendDist": "../../web/out",
+    "beforeBuildCommand": "npm --prefix ../.. run build:web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LVPP Studio",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8321 http://localhost:8321 http://127.0.0.1:8188; img-src 'self' data: http://127.0.0.1:8188; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

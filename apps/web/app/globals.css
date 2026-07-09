@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* ── Studio token set ─────────────────────────────────────────────
+   A color-grading-suite dark: deep slate surfaces, tungsten-amber
+   accent (the tally light), cool key-light blue for info.        */
+@theme {
+  --color-bg: #101318;
+  --color-surface: #171b22;
+  --color-surface-2: #1f242e;
+  --color-edge: #262c36;
+  --color-fg: #e6e9ef;
+  --color-muted: #8a93a3;
+  --color-accent: #e8a33d;
+  --color-accent-fg: #17130a;
+  --color-info: #5b8def;
+  --color-success: #4caf7d;
+  --color-danger: #e5534b;
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), var(--font-sans), sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+/* editor-style scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-edge) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* React Flow dark mapping */
+.react-flow {
+  --xy-background-color: var(--color-bg);
+  --xy-node-background-color: var(--color-surface);
+  --xy-node-border: 1px solid var(--color-edge);
+  --xy-node-color: var(--color-fg);
+  --xy-edge-stroke: var(--color-muted);
+  --xy-attribution-background-color: transparent;
+}

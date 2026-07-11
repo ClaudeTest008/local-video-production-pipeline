@@ -292,18 +292,80 @@ def _resolve_reroutes(
     return src
 
 
+DYNAMIC_COMBO_TYPE = "COMFY_DYNAMICCOMBO_V3"
+
+
+def _is_widget_kind(kind) -> bool:
+    return isinstance(kind, list) or kind in PRIMITIVE_TYPES or kind == DYNAMIC_COMBO_TYPE
+
+
+def _widget_defs(spec: dict) -> list[tuple[str, list | tuple]]:
+    """(name, definition) for widget-shaped inputs (primitives/combos/dynamic
+    combos) in an object_info ``input`` block, required section first."""
+    defs = []
+    for section in ("required", "optional"):
+        for name, definition in (spec.get(section) or {}).items():
+            if not isinstance(definition, (list, tuple)) or not definition:
+                continue
+            if _is_widget_kind(definition[0]):
+                defs.append((name, definition))
+    return defs
+
+
 def _widget_input_names(class_type: str, object_info: dict) -> list[str]:
     """Input names that are widgets (primitives/combos), in declaration order."""
     spec = object_info.get(class_type, {}).get("input", {})
-    names = []
-    for section in ("required", "optional"):
-        for name, definition in spec.get(section, {}).items():
-            if not isinstance(definition, (list, tuple)) or not definition:
+    return [name for name, _ in _widget_defs(spec)]
+
+
+def _assign_widget_values(
+    node_id,
+    defs: list[tuple[str, list | tuple]],
+    values: list,
+    connected: set,
+    inputs: dict,
+    issues: list[str],
+    vi: int,
+    prefix: str = "",
+) -> int:
+    """Walk ``defs`` in order, consuming one positional value per widget not
+    already satisfied by a link. A COMFY_DYNAMICCOMBO_V3 widget consumes its
+    own selector value, then — since the selected option changes which
+    sub-inputs exist — splices that option's required+optional widget inputs
+    into the walk at the current position, in declared order. Sub-inputs are
+    keyed "<combo_name>.<sub_name>", matching the qualified name ComfyUI's
+    execution expects for combo-scoped inputs."""
+    for name, definition in defs:
+        qualified = prefix + name
+        if qualified in connected:
+            continue
+        if vi >= len(values):
+            break
+        if definition[0] == DYNAMIC_COMBO_TYPE:
+            selected = values[vi]
+            vi += 1
+            inputs[qualified] = selected
+            options = (definition[1] or {}).get("options") or []
+            option = next((o for o in options if o.get("key") == selected), None)
+            if option is None:
+                issues.append(
+                    f"node {node_id}: unknown option '{selected}' for dynamic combo '{name}'"
+                )
                 continue
-            kind = definition[0]
-            if isinstance(kind, list) or kind in PRIMITIVE_TYPES:  # combo list or primitive
-                names.append(name)
-    return names
+            sub_defs = _widget_defs(option.get("inputs") or {})
+            vi = _assign_widget_values(
+                node_id, sub_defs, values, connected, inputs, issues, vi, prefix=qualified + "."
+            )
+            continue
+        inputs[qualified] = values[vi]
+        vi += 1
+        if (
+            name in SEED_INPUTS
+            and vi < len(values)
+            and values[vi] in ("fixed", "increment", "decrement", "randomize")
+        ):
+            vi += 1  # control_after_generate ghost widget
+    return vi
 
 
 def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
@@ -343,27 +405,19 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
                 if src[0] is None or unresolved:
                     issues.append(f"node {node['id']}: dangling link on '{inp.get('name')}'")
                     continue
+                # V3 dynamic-combo sub-inputs are socket-named "<combo>.<leaf>"
+                # (e.g. "num_images.image_1"); execution expects that qualified
+                # name verbatim as the kwarg key, so keep it as-is.
                 inputs[inp["name"]] = [str(src[0]), src[1]]
                 connected.add(inp["name"])
 
         if class_missing := node_type not in object_info:
             issues.append(f"node {node['id']}: unknown class '{node_type}' on this server")
-        widget_names = [] if class_missing else _widget_input_names(node_type, object_info)
+        widget_defs = (
+            [] if class_missing else _widget_defs(object_info.get(node_type, {}).get("input", {}))
+        )
         values = list(node.get("widgets_values") or [])
-        vi = 0
-        for name in widget_names:
-            if name in connected:
-                continue
-            if vi >= len(values):
-                break
-            inputs[name] = values[vi]
-            vi += 1
-            if (
-                name in SEED_INPUTS
-                and vi < len(values)
-                and values[vi] in ("fixed", "increment", "decrement", "randomize")
-            ):
-                vi += 1  # control_after_generate ghost widget
+        _assign_widget_values(node["id"], widget_defs, values, connected, inputs, issues, 0)
 
         graph[str(node["id"])] = {"class_type": node_type, "inputs": inputs}
 

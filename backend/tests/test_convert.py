@@ -328,6 +328,147 @@ def test_muted_node_output_reports_dangling():
     assert any("dangling link" in issue for issue in result["issues"])
 
 
+LTXV_OBJECT_INFO = {
+    "LTXVImgToVideoInplaceKJ": {
+        "input": {
+            "required": {
+                "num_images": [
+                    "COMFY_DYNAMICCOMBO_V3",
+                    {
+                        "options": [
+                            {
+                                "key": "1",
+                                "inputs": {
+                                    "required": {"strength_1": ["FLOAT", {"default": 1.0}]},
+                                    "optional": {
+                                        "image_1": ["IMAGE", {}],
+                                        "index_1": ["INT", {"default": 0}],
+                                    },
+                                },
+                            },
+                            {
+                                "key": "2",
+                                "inputs": {
+                                    "required": {
+                                        "strength_1": ["FLOAT", {"default": 1.0}],
+                                        "strength_2": ["FLOAT", {"default": 1.0}],
+                                    },
+                                    "optional": {
+                                        "image_1": ["IMAGE", {}],
+                                        "index_1": ["INT", {"default": 0}],
+                                        "image_2": ["IMAGE", {}],
+                                        "index_2": ["INT", {"default": 0}],
+                                    },
+                                },
+                            },
+                        ]
+                    },
+                ]
+            },
+            "optional": {},
+        }
+    }
+}
+
+
+def test_dynamic_combo_expands_selected_option_num_images_1():
+    ui = {
+        "nodes": [
+            {
+                "id": 1,
+                "type": "LTXVImgToVideoInplaceKJ",
+                "inputs": [],
+                "outputs": [],
+                # num_images=1, strength_1, index_1 (image_1 left unconnected)
+                "widgets_values": ["1", 0.75, 3],
+            }
+        ],
+        "links": [],
+    }
+    graph = ui_to_api(ui, object_info=LTXV_OBJECT_INFO)["graph"]
+    assert graph["1"]["inputs"] == {
+        "num_images": "1",
+        "num_images.strength_1": 0.75,
+        "num_images.index_1": 3,
+    }
+
+
+def test_dynamic_combo_expands_selected_option_num_images_2():
+    ui = {
+        "nodes": [
+            {
+                "id": 1,
+                "type": "LTXVImgToVideoInplaceKJ",
+                "inputs": [],
+                "outputs": [],
+                # num_images=2, strength_1, strength_2, index_1, index_2
+                "widgets_values": ["2", 0.5, 0.9, 1, 2],
+            }
+        ],
+        "links": [],
+    }
+    graph = ui_to_api(ui, object_info=LTXV_OBJECT_INFO)["graph"]
+    assert graph["1"]["inputs"] == {
+        "num_images": "2",
+        "num_images.strength_1": 0.5,
+        "num_images.strength_2": 0.9,
+        "num_images.index_1": 1,
+        "num_images.index_2": 2,
+    }
+
+
+def test_dynamic_combo_sub_input_connected_via_link_not_consumed_positionally():
+    # image_1 is wired to a real link (a socket, not a widget) — its value
+    # slot never appears in widgets_values at all, matching ComfyUI's own
+    # "converted to input" behavior. index_1 still consumes positionally.
+    # ComfyUI's V3 UI names the socket "num_images.image_1" (combo-scoped),
+    # and execution expects that qualified name verbatim as the kwarg key.
+    ui = {
+        "nodes": [
+            {
+                "id": 1,
+                "type": "LoadImage",
+                "inputs": [],
+                "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [50]}],
+                "widgets_values": ["photo.png"],
+            },
+            {
+                "id": 2,
+                "type": "LTXVImgToVideoInplaceKJ",
+                "inputs": [{"name": "num_images.image_1", "type": "IMAGE", "link": 50}],
+                "outputs": [],
+                "widgets_values": ["1", 0.75, 3],
+            },
+        ],
+        "links": [[50, 1, 0, 2, 0, "IMAGE"]],
+    }
+    graph = ui_to_api(ui, object_info=LTXV_OBJECT_INFO)["graph"]
+    assert graph["2"]["inputs"] == {
+        "num_images": "1",
+        "num_images.image_1": ["1", 0],
+        "num_images.strength_1": 0.75,
+        "num_images.index_1": 3,
+    }
+
+
+def test_dynamic_combo_unknown_option_reports_issue():
+    ui = {
+        "nodes": [
+            {
+                "id": 1,
+                "type": "LTXVImgToVideoInplaceKJ",
+                "inputs": [],
+                "outputs": [],
+                "widgets_values": ["3"],
+            }
+        ],
+        "links": [],
+    }
+    result = ui_to_api(ui, object_info=LTXV_OBJECT_INFO)
+    assert result["graph"]["1"]["inputs"] == {"num_images": "3"}
+    assert any("unknown option" in issue for issue in result["issues"])
+
+
 def test_plain_graph_unchanged():
     ui = {
         "nodes": [

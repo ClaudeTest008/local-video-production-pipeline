@@ -21,6 +21,8 @@ def run_agent(
     project_id: int | None = None,
     conversation_id: int | None = None,
     context: str = "",
+    provider_override: str = "",
+    model_override: str = "",
 ) -> tuple[AgentConversation, str, str, str]:
     conversations = Repository(AgentConversation, db)
     messages = Repository(AgentMessage, db)
@@ -42,8 +44,9 @@ def run_agent(
     chat += [ChatMessage(m.role, m.content) for m in history]
     chat.append(ChatMessage("user", user_input))
 
-    provider_name = agent.provider or settings.default_chat_provider
-    model = agent.model or settings.default_chat_model
+    # precedence: agent profile → caller override (e.g. brand preference) → app default
+    provider_name = agent.provider or provider_override or settings.default_chat_provider
+    model = agent.model or model_override or settings.default_chat_model
     provider = ai_registry.get_provider(provider_name)
     response = provider.chat(chat, model=model, temperature=agent.temperature)
 

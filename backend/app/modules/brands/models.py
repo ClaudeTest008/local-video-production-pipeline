@@ -19,6 +19,10 @@ class Brand(Base, TimestampMixin):
     platforms: Mapped[list] = mapped_column(default=list)  # ["youtube", "tiktok", ...]
     schedule: Mapped[dict] = mapped_column(default=dict)  # publishing cadence
     goals: Mapped[str] = mapped_column(Text, default="")  # business goals ("100k subs")
+    # Preferred engines — used when an agent profile doesn't pin its own
+    preferred_provider: Mapped[str] = mapped_column(String(50), default="")
+    preferred_model: Mapped[str] = mapped_column(String(100), default="")
+    preferred_workflow_id: Mapped[int | None] = mapped_column(nullable=True)  # ComfyUI graph
     memory: Mapped[dict] = mapped_column(default=dict)  # accumulated brand memory
     meta: Mapped[dict] = mapped_column(default=dict)
 

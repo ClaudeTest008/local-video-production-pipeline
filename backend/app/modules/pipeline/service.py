@@ -59,8 +59,15 @@ def get_agent(db: Session, role: str) -> AgentProfile:
 
 def _run_role(db: Session, role: str, user_input: str, project: Project, context: str) -> str:
     agent = get_agent(db, role)
+    brand = db.get(Brand, project.brand_id) if project.brand_id else None
     _, content, _, _ = agent_service.run_agent(
-        db, agent, user_input, project_id=project.id, context=context
+        db,
+        agent,
+        user_input,
+        project_id=project.id,
+        context=context,
+        provider_override=brand.preferred_provider if brand else "",
+        model_override=brand.preferred_model if brand else "",
     )
     return content
 
@@ -214,9 +221,15 @@ def _stage_images(db: Session, project: Project, context: str) -> str:
     client = ComfyUIClient()
     if not client.is_available():
         return "skipped: ComfyUI not running"
-    workflow = db.scalars(
-        select(WorkflowDef).where(WorkflowDef.kind == "comfyui").order_by(WorkflowDef.id.desc())
-    ).first()
+    # brand preference wins; otherwise the newest saved ComfyUI graph
+    brand = db.get(Brand, project.brand_id) if project.brand_id else None
+    workflow = None
+    if brand and brand.preferred_workflow_id:
+        workflow = db.get(WorkflowDef, brand.preferred_workflow_id)
+    if workflow is None:
+        workflow = db.scalars(
+            select(WorkflowDef).where(WorkflowDef.kind == "comfyui").order_by(WorkflowDef.id.desc())
+        ).first()
     if workflow is None or not workflow.graph:
         return "skipped: no ComfyUI workflow saved in Workflow Manager"
 

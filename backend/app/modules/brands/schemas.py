@@ -15,6 +15,9 @@ class BrandCreate(OrmModel):
 
 class BrandUpdate(OrmModel):
     name: str | None = None
+    preferred_provider: str | None = None
+    preferred_model: str | None = None
+    preferred_workflow_id: int | None = None
     description: str | None = None
     voice: str | None = None
     style: str | None = None
@@ -36,5 +39,8 @@ class BrandRead(Timestamped):
     platforms: list
     schedule: dict
     goals: str
+    preferred_provider: str
+    preferred_model: str
+    preferred_workflow_id: int | None
     memory: dict
     meta: dict

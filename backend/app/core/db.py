@@ -46,8 +46,19 @@ def get_db() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """Create tables for dev/test. Production migrations go through Alembic."""
-    import app.core.registry as registry
+    """Bring the schema to head via Alembic on every startup.
 
-    registry.import_all_models()
-    Base.metadata.create_all(bind=engine)
+    Alembic owns the schema (verified: `upgrade head` on a fresh DB yields the
+    same tables/columns as ``create_all``). Running it at boot means existing
+    installs self-heal when a migration is added — users never run alembic by
+    hand. No-op when the DB is already at head.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    # backend root holds alembic.ini and the alembic/ script dir; resolve
+    # absolutely so this works regardless of the process cwd (e.g. Tauri bundle).
+    backend_root = Path(__file__).resolve().parents[2]
+    cfg = Config(str(backend_root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    command.upgrade(cfg, "head")

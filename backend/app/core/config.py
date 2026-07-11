@@ -52,5 +52,23 @@ class Settings(BaseSettings):
     # Per-render wait budget in the pipeline's video stage (video models are slow)
     render_timeout_s: int = 1800
 
+    def model_post_init(self, __context: object) -> None:
+        # Tauri launches the backend with an arbitrary cwd, so the default
+        # relative paths ("./data/...") would resolve differently per launch —
+        # the DB and asset trees must land in the same place every time. Anchor
+        # them to the backend root. Absolute overrides (env / PostgreSQL) pass
+        # through untouched.
+        root = Path(__file__).resolve().parents[2]
+        prefix = "sqlite:///"
+        if self.database_url.startswith(prefix):
+            raw = self.database_url[len(prefix) :]
+            if raw and not raw.startswith(":memory:") and not Path(raw).is_absolute():
+                anchored = (root / raw.lstrip("./\\")).resolve()
+                self.database_url = prefix + anchored.as_posix()
+        if not self.projects_root.is_absolute():
+            self.projects_root = root / self.projects_root
+        if not self.log_dir.is_absolute():
+            self.log_dir = root / self.log_dir
+
 
 settings = Settings()

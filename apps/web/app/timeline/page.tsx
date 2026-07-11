@@ -20,10 +20,14 @@ function fileName(path: string) {
 function TrackRow({
   track,
   onAddClip,
+  onMoveClip,
+  onRemoveClip,
   saving,
 }: {
   track: TimelineTrack;
   onAddClip: (clip: { path: string; duration?: number }) => void;
+  onMoveClip: (index: number, direction: -1 | 1) => void;
+  onRemoveClip: (index: number) => void;
   saving: boolean;
 }) {
   const [adding, setAdding] = useState(false);
@@ -56,13 +60,37 @@ function TrackRow({
           {track.clips.map((clip, i) => (
             <span
               key={`${clip.path}-${i}`}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1 font-mono text-[11px]"
+              className="group inline-flex shrink-0 items-center gap-1 rounded border border-edge bg-surface-2 px-2 py-1 font-mono text-[11px]"
               title={clip.path}
             >
+              <button
+                aria-label="Move clip left"
+                className="text-muted opacity-40 hover:text-fg group-hover:opacity-100 disabled:invisible"
+                disabled={i === 0 || saving}
+                onClick={() => onMoveClip(i, -1)}
+              >
+                ‹
+              </button>
               {fileName(clip.path)}
               {clip.duration != null && (
                 <span className="text-muted">{clip.duration}s</span>
               )}
+              <button
+                aria-label="Move clip right"
+                className="text-muted opacity-40 hover:text-fg group-hover:opacity-100 disabled:invisible"
+                disabled={i === track.clips.length - 1 || saving}
+                onClick={() => onMoveClip(i, 1)}
+              >
+                ›
+              </button>
+              <button
+                aria-label="Remove clip"
+                className="ml-0.5 text-muted opacity-40 hover:text-danger group-hover:opacity-100"
+                disabled={saving}
+                onClick={() => onRemoveClip(i)}
+              >
+                ×
+              </button>
             </span>
           ))}
         </div>
@@ -112,9 +140,14 @@ function TrackRow({
 
 function ExportCard({ timelineId }: { timelineId: number }) {
   const [format, setFormat] = useState<"mp4" | "mov">("mp4");
+  const [burn, setBurn] = useState(false);
   const exp = useMutation({
     mutationFn: (run: boolean) =>
-      api.post<ExportResult>(`/timelines/${timelineId}/export`, { format, run }),
+      api.post<ExportResult>(`/timelines/${timelineId}/export`, {
+        format,
+        run,
+        burn_subtitles: burn,
+      }),
   });
   const result = exp.data;
 
@@ -131,6 +164,15 @@ function ExportCard({ timelineId }: { timelineId: number }) {
           <option value="mp4">mp4</option>
           <option value="mov">mov</option>
         </select>
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={burn}
+            onChange={(e) => setBurn(e.target.checked)}
+            className="accent-[var(--color-accent)]"
+          />
+          burn captions
+        </label>
         <Button variant="outline" onClick={() => exp.mutate(false)} disabled={exp.isPending}>
           Dry run
         </Button>
@@ -203,6 +245,22 @@ function TimelineEditor({ timeline, projectId }: { timeline: Timeline; projectId
         i === index ? { ...t, clips: [...t.clips, clip] } : t,
       ),
     });
+  const moveClip = (trackIndex: number, clipIndex: number, direction: -1 | 1) =>
+    patch.mutate({
+      tracks: timeline.tracks.map((t, i) => {
+        if (i !== trackIndex) return t;
+        const clips = [...t.clips];
+        const [clip] = clips.splice(clipIndex, 1);
+        clips.splice(clipIndex + direction, 0, clip);
+        return { ...t, clips };
+      }),
+    });
+  const removeClip = (trackIndex: number, clipIndex: number) =>
+    patch.mutate({
+      tracks: timeline.tracks.map((t, i) =>
+        i === trackIndex ? { ...t, clips: t.clips.filter((_, ci) => ci !== clipIndex) } : t,
+      ),
+    });
 
   return (
     <div className="space-y-4">
@@ -264,13 +322,62 @@ function TimelineEditor({ timeline, projectId }: { timeline: Timeline; projectId
                 track={track}
                 saving={patch.isPending}
                 onAddClip={(clip) => addClip(i, clip)}
+                onMoveClip={(ci, dir) => moveClip(i, ci, dir)}
+                onRemoveClip={(ci) => removeClip(i, ci)}
               />
             ))}
           </div>
         )}
       </Card>
+      <AiEditCard timeline={timeline} projectId={projectId} />
       <ExportCard timelineId={timeline.id} />
     </div>
+  );
+}
+
+function AiEditCard({ timeline, projectId }: { timeline: Timeline; projectId: number }) {
+  const [instruction, setInstruction] = useState("");
+  const agents = useQuery({ queryKey: ["agents"], queryFn: api.listAgents });
+  const editor = agents.data?.find((a) => a.role === "editor");
+  const ask = useMutation({
+    mutationFn: () =>
+      api.runAgent(editor!.id, `Timeline (JSON): ${JSON.stringify(timeline.tracks).slice(0, 3000)}\n\nInstruction: ${instruction}\n\nPropose a concrete edit plan: exact clip order changes, trims (seconds), which scenes to regenerate and with what kind of workflow (video/lip-sync). Numbered steps.`, { project_id: projectId }),
+  });
+  return (
+    <Card className="p-4">
+      <h2 className="mb-1 text-sm font-medium">AI editing</h2>
+      <p className="mb-3 text-xs text-muted">
+        Tell the Editor what to change — {"“"}tighten the middle{"”"},
+        {" “"}regenerate scene 3 with a lip-sync workflow{"”"}. It proposes a plan; you
+        apply it with the controls above.
+      </p>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (instruction.trim() && editor) ask.mutate();
+        }}
+      >
+        <Input
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          placeholder={editor ? "Describe the edit…" : "Seed the agent crew first (Agents page)"}
+          disabled={!editor}
+          aria-label="Edit instruction"
+        />
+        <Button type="submit" disabled={!editor || !instruction.trim() || ask.isPending}>
+          {ask.isPending ? "Thinking…" : "Ask"}
+        </Button>
+      </form>
+      {ask.data && (
+        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-surface-2 p-3 text-xs text-fg">
+          {ask.data.content}
+        </pre>
+      )}
+      {ask.isError && (
+        <p className="mt-2 text-xs text-danger">{(ask.error as Error).message}</p>
+      )}
+    </Card>
   );
 }
 

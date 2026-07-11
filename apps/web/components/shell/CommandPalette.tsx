@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@lvpp/shared";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
-import { NAV } from "@/lib/nav";
+import { NAV, NAV_ADVANCED } from "@/lib/nav";
 import { useStudio } from "@/lib/store";
 
 /** Ctrl+K — navigation, project jump, and global search in one surface. */
@@ -41,7 +41,7 @@ export function CommandPalette() {
           heading="Modules"
           className="text-[10px] uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
         >
-          {NAV.map(({ href, label, icon: Icon }) => (
+          {[...NAV, ...NAV_ADVANCED].map(({ href, label, icon: Icon }) => (
             <Command.Item
               key={href}
               value={`module ${label}`}

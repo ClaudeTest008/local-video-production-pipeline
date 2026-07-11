@@ -23,6 +23,7 @@ import type {
   SubtitleTrack,
   Timeline,
   WorkflowDef,
+  WorkflowSelection,
 } from "./types";
 
 export class ApiError extends Error {
@@ -132,6 +133,17 @@ export class ApiClient {
   listWorkflows = () => this.get<WorkflowDef[]>("/workflows");
   saveWorkflow = (body: { name: string; kind?: string; graph: Record<string, unknown> }) =>
     this.post<WorkflowDef>("/workflows", body);
+  discoverWorkflows = () =>
+    this.post<{ imported: { name: string }[]; failed: { name: string }[]; error?: string }>(
+      "/workflows/discover",
+    );
+  uploadWorkflow = (name: string, workflow: Record<string, unknown>) =>
+    this.post<WorkflowDef>("/workflows/upload", { name, workflow });
+  updateWorkflow = (id: number, body: Partial<WorkflowDef>) =>
+    this.patch<WorkflowDef>(`/workflows/${id}`, body);
+  workflowSelection = () => this.get<WorkflowSelection>("/workflows/selection");
+  workflowTemplates = () =>
+    this.get<{ available: boolean; templates: Record<string, unknown> }>("/workflows/templates");
 
   // Settings
   providers = () => this.get<ProviderStatus[]>("/settings/providers");

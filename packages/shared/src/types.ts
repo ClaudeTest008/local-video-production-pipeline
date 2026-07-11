@@ -224,7 +224,21 @@ export interface WorkflowDef extends Timestamped {
   graph: Record<string, unknown>;
   version: number;
   parent_id: number | null;
+  source: "manual" | "imported" | "uploaded";
+  enabled: boolean;
+  favorite: boolean;
+  wf_type: "video_lipsync" | "avatar" | "video" | "image" | "audio" | "other";
+  models: string[];
+  vram_estimate_mb: number | null;
+  content_types: string[];
   meta: Record<string, unknown>;
+}
+
+export interface WorkflowSelection {
+  workflow_id: number | null;
+  name: string | null;
+  wf_type: string | null;
+  note: string;
 }
 
 export interface ProviderStatus {

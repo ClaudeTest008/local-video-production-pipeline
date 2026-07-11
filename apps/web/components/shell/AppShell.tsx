@@ -3,12 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@lvpp/shared";
 import { Kbd } from "@lvpp/ui";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { NAV } from "@/lib/nav";
+import { NAV, NAV_ADVANCED } from "@/lib/nav";
 import { useStudio } from "@/lib/store";
 import { ChatDock } from "./ChatDock";
 import { CommandPalette } from "./CommandPalette";
@@ -25,6 +25,16 @@ function NavRail() {
         <span className="font-display text-sm font-semibold tracking-wide">LVPP Studio</span>
       </div>
       <div className="flex-1 overflow-y-auto py-2">
+        <Link
+          href="/create"
+          className={`mx-2 mb-2 flex items-center justify-center gap-2 rounded-md py-2 text-[13px] font-medium transition-colors ${
+            pathname === "/create"
+              ? "bg-accent text-accent-fg"
+              : "bg-accent/90 text-accent-fg hover:bg-accent"
+          }`}
+        >
+          <Plus className="size-4" aria-hidden /> Create
+        </Link>
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
@@ -38,6 +48,26 @@ function NavRail() {
               }`}
             >
               <Icon className="size-4" aria-hidden />
+              {label}
+            </Link>
+          );
+        })}
+        <p className="mx-4 mb-1 mt-4 text-[10px] uppercase tracking-wider text-muted/60">
+          Advanced
+        </p>
+        {NAV_ADVANCED.map(({ href, label, icon: Icon }) => {
+          const active = pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`mx-2 mb-0.5 flex items-center gap-2.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
+                active
+                  ? "bg-surface-2 text-fg shadow-[inset_2px_0_0_var(--color-accent)]"
+                  : "text-muted/80 hover:bg-surface-2/60 hover:text-fg"
+              }`}
+            >
+              <Icon className="size-3.5" aria-hidden />
               {label}
             </Link>
           );

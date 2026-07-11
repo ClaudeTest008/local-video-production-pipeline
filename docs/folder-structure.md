@@ -20,13 +20,13 @@ local-video-production-pipeline/
 │   ├── app/
 │   │   ├── main.py           App factory; mounts every discovered router under /api
 │   │   ├── core/             db, config, events, repository, crud_router, registry,
-│   │   │                     files, ai/ (providers), media/ (ffmpeg, tts, transcribe)
+│   │   │                     files, ai/ (providers), media/ (ffmpeg)
 │   │   └── modules/          23 auto-discovered feature modules (see architecture.md)
 │   ├── alembic/              Migrations (production schema changes)
 │   ├── tests/                pytest suite, one file per module
 │   ├── data/                 Runtime data: studio.db (SQLite) + projects/ file trees
 │   ├── seed.py               Idempotent sample data (project, agents, MCP catalog, templates)
-│   └── pyproject.toml        Deps + extras: dev, postgres, rag, transcribe, agents
+│   └── pyproject.toml        Deps + extras: dev, postgres, rag, agents
 ├── docs/                     This documentation
 ├── examples/                 pipeline-walkthrough.md + comfyui-txt2img.json workflow
 ├── .github/workflows/        CI (ci.yml)

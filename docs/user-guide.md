@@ -4,7 +4,7 @@ You are the Creative Director. The studio's agent crew does the work. This guide
 
 ## Studio (home)
 
-Live overview: system health (backend, ComfyUI + VRAM, AI providers, FFmpeg/Whisper/TTS), active production runs, top open opportunities, brands, and the latest things the studio learned. Green dots = ready; anything off shows what to do in the Setup wizard's scan (Settings → rerun detection via `/api/system/detect`).
+Live overview: system health (backend, ComfyUI + VRAM, AI providers, FFmpeg), active production runs, top open opportunities, brands, and the latest things the studio learned. Green dots = ready; anything off shows what to do in the Setup wizard's scan (Settings → rerun detection via `/api/system/detect`).
 
 ## Brands
 
@@ -16,17 +16,17 @@ Answers *"what should I create next?"* before *"how?"*. Generate opportunities (
 
 ## Pipeline
 
-The production line: research → script → storyboard → prompts → images → voice → SEO → thumbnail.
+The production line: research → script → storyboard → prompts → video (voice + lip-sync via your ComfyUI workflows) → captions → SEO → thumbnail. Rendered outputs auto-import into Assets and the timeline is assembled for you.
 
 - **Assisted run** — one stage per click; review artifacts between stages.
 - **Producer run** — every runnable stage back-to-back; "Run all" also works in the background (the board keeps updating).
 - **Quality review** — the Creative Director critiques scripts, SEO packs, and thumbnail concepts; on a REVISE verdict the producing agent rewrites once. The critique is stored with the artifact. Disable with `LVPP_PIPELINE_REVIEW=false`.
-- **Degrading gracefully** — images skip cleanly when ComfyUI isn't running; voice skips without a TTS engine; a failed stage shows the reason and retries on the next run.
+- **Degrading gracefully** — the video stage skips cleanly when ComfyUI isn't running or no workflow is enabled; a failed stage shows the reason and retries on the next run.
 - Stage artifacts land in their modules: Scripts, Prompt Studio, Assets, Timeline, SEO records on the project.
 
 ## ComfyUI
 
-Connects to a local instance (`http://127.0.0.1:8188` by default). Status, node browser, installed checkpoints/LoRAs/VAEs/ControlNets, manual job queueing (API-format workflows — export via "Save (API format)"), job history with output tracking, and per-workflow stats (success rate + speed) that drive automatic workflow choice. Save graphs in Workflow Manager; the pipeline injects each scene's prompt into the brand-preferred (or newest) graph automatically.
+Connects to a local instance (`http://127.0.0.1:8188` by default). Status, node browser, installed checkpoints/LoRAs/VAEs/ControlNets, manual job queueing (API-format workflows — export via "Save (API format)"), job history with output tracking, and per-workflow stats (success rate + speed) that drive automatic workflow choice. The **Workflows page** discovers every workflow saved in your ComfyUI library (Discover button), accepts .json uploads, classifies each one (Video + Lip-Sync / Avatar / Cinematic Video / Image), and lets you enable/favorite them. Automatic mode picks the best enabled video+voice workflow; you never edit nodes.
 
 ## Chat, Prompt Studio, Scripts, Assets, Timeline
 
@@ -42,7 +42,7 @@ Connects to a local instance (`http://127.0.0.1:8188` by default). Status, node 
 
 ## MCP servers
 
-A 13-server catalog (filesystem, git, github, python, sqlite, docker, playwright, brave-search, comfyui, ffmpeg, whisper, browser, local-rag). Discover, toggle, add custom servers, and export the `mcpServers` JSON for Claude Desktop / Cursor.
+A 12-server catalog (filesystem, git, github, python, sqlite, docker, playwright, brave-search, comfyui, ffmpeg, browser, local-rag). Discover, toggle, add custom servers, and export the `mcpServers` JSON for Claude Desktop / Cursor.
 
 ## Settings
 
@@ -50,4 +50,4 @@ Provider availability, chat defaults (wizard-set; editable), and the application
 
 ## Data & privacy
 
-Everything is local: SQLite database, project files, and logs under `%LOCALAPPDATA%\LVPP Studio` (installed) or `backend/data` (dev). No telemetry. Cloud AI providers are opt-in per agent/brand/default.
+Everything is local: SQLite database, project files, and logs under `%APPDATA%\LVPP Studio` (installed) or `backend/data` (dev). No telemetry. Cloud AI providers are opt-in per agent/brand/default.

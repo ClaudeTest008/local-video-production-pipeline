@@ -38,7 +38,7 @@ The ladder is deliberate: each rung ships only when the rung below is trustworth
 ## Principles
 
 1. **Local-first** — SQLite + local file tree; Ollama and ComfyUI are the default engines; cloud providers are optional plugins.
-2. **Everything replaceable** — providers, workflows, TTS engines, MCP servers, and feature modules are all registry-driven; nothing in core names a vendor.
+2. **Everything replaceable** — providers, workflows, MCP servers, and feature modules are all registry-driven; nothing in core names a vendor.
 3. **The AI decides render details** — users state intent; workflow selection uses measured stats (`/comfyui/workflow-stats`), prompt injection adapts saved graphs. Users never have to know what a sampler is.
 4. **Honest autonomy** — media stages skip cleanly when local engines are absent; strategy says when it reasons without live data; every stage logs what it actually did.
 5. **Learning over time** — operational events become Learnings; the strongest feed back into every agent's context. Analytics close the loop.

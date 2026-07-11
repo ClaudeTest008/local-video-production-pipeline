@@ -22,13 +22,13 @@ Create your first brand in the wizard (name + goal is enough) and keep "sample p
 
 1. **Strategy** → "Generate opportunities" — the Strategy Director proposes scored topics for your brand.
 2. **Approve** the one you like — it becomes a project.
-3. **Pipeline** → select the project → **New producer run** → **Run all**. The crew researches, writes (with a Creative-Director review pass), storyboards, writes image prompts, renders via ComfyUI (if running), voices (if a TTS engine is installed), and produces SEO + thumbnail concepts.
+3. **Pipeline** → select the project → **New producer run** → **Run all**. The crew researches, writes (with a Creative-Director review pass), storyboards, engineers prompts, renders full video clips (voice and lip-sync included when a capable ComfyUI workflow is enabled), captions, and produces SEO + thumbnail concepts.
 4. Review everything from the **project page**; export SRT captions, script markdown, MP4 (timeline), or a full project archive.
 
 No Ollama yet? Set provider `echo` in Settings to watch the pipeline run with deterministic placeholder output.
 
 ## 4. Where things live
 
-- Your data: `%LOCALAPPDATA%\LVPP Studio` (database, projects, logs) — delete it to factory-reset.
+- Your data: `%APPDATA%\LVPP Studio` (database, projects, logs) — delete it to factory-reset.
 - Logs: Settings → Application log, or `GET /api/system/logs`.
 - API playground: http://127.0.0.1:8321/docs while the app runs.

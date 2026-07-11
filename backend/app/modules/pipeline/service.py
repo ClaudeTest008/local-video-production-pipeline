@@ -226,45 +226,76 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
     from app.modules.comfyui.client import ComfyUIClient
     from app.modules.comfyui.models import ComfyJob
     from app.modules.timeline.models import Timeline
+    from app.modules.workflows.models import WorkflowDef
     from app.modules.workflows.service import select_workflow
 
     client = ComfyUIClient()
     if not client.is_available():
         return "skipped: ComfyUI not running"
     brand = db.get(Brand, project.brand_id) if project.brand_id else None
-    workflow, note = select_workflow(
-        db,
-        preferred_id=brand.preferred_workflow_id if brand else None,
-        want=("video_lipsync", "avatar", "video"),
-    )
-    if workflow is None:
-        return f"skipped: {note}"
+    scenes = [s for s in _scenes(db, project.id) if s.prompt]
+    if not scenes:
+        return "skipped: no scenes with prompts to render"
 
     jobs_repo = Repository(ComfyJob, db)
-    scenes = [s for s in _scenes(db, project.id) if s.prompt]
+    workflows_repo = Repository(WorkflowDef, db)
+    tried: set[int] = set()
+    workflow = None
+    note = ""
     jobs = []
-    for scene in scenes:
-        # lip-sync/video workflows speak the scene text: prompt carries visuals + dialogue
-        prompt = scene.prompt
-        if scene.description and workflow.wf_type in ("video_lipsync", "avatar"):
-            prompt = f"{scene.prompt}. Spoken dialogue: {scene.description}"
-        graph = comfy_service.inject_prompt(workflow.graph, prompt)
-        try:
-            prompt_id = client.queue_prompt(graph)
-        except Exception as e:
-            logger.warning("queue failed for scene %s: %s", scene.id, e)
-            continue
-        job = jobs_repo.create(
-            project_id=project.id,
-            prompt_id=prompt_id,
-            workflow=graph,
-            workflow_def_id=workflow.id,
-            meta={"scene_id": scene.id, "duration_s": scene.duration_s},
+    # a workflow that ComfyUI rejects gets flagged and the next candidate is tried
+    for _attempt in range(3):
+        workflow, note = select_workflow(
+            db,
+            preferred_id=(
+                brand.preferred_workflow_id
+                if brand and brand.preferred_workflow_id not in tried
+                else None
+            ),
+            want=("video_lipsync", "avatar", "video"),
+            exclude=tuple(tried),
         )
-        comfy_service.record_queued(job)
-        jobs.append(job)
+        if workflow is None:
+            return f"skipped: {note}"
+        tried.add(workflow.id)
+        jobs = []
+        failed_validation = False
+        for scene in scenes:
+            # lip-sync/video workflows speak the scene text: prompt carries visuals + dialogue
+            prompt = scene.prompt
+            if scene.description and workflow.wf_type in ("video_lipsync", "avatar"):
+                prompt = f"{scene.prompt}. Spoken dialogue: {scene.description}"
+            graph = comfy_service.inject_prompt(workflow.graph, prompt)
+            try:
+                prompt_id = client.queue_prompt(graph)
+            except Exception as e:
+                logger.warning("queue failed for scene %s via '%s': %s", scene.id, workflow.name, e)
+                workflows_repo.update(
+                    workflow.id,
+                    meta={
+                        **workflow.meta,
+                        "conversion_status": "failed",
+                        "last_error": str(e)[:800],
+                    },
+                )
+                failed_validation = True
+                break
+            job = jobs_repo.create(
+                project_id=project.id,
+                prompt_id=prompt_id,
+                workflow=graph,
+                workflow_def_id=workflow.id,
+                meta={"scene_id": scene.id, "duration_s": scene.duration_s},
+            )
+            comfy_service.record_queued(job)
+            jobs.append(job)
+        if not failed_validation:
+            break
     if not jobs:
-        return "skipped: no scenes with prompts to render"
+        return (
+            "skipped: every candidate workflow was rejected by ComfyUI — open the "
+            "Workflows page ('check' badges show details) or upload an API-format export"
+        )
 
     # wait for renders, then auto-import outputs into the project tree
     deadline = time.time() + settings.render_timeout_s * len(jobs)

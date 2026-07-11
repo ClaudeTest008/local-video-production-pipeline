@@ -23,6 +23,8 @@ The vision lives in [docs/vision.md](docs/vision.md). This file tracks execution
 - **System health + studio dashboard** — `/api/system/health` aggregate; home page is the studio overview (project list at `/projects`)
 - **v1.0.0 release** — Windows NSIS installer with bundled backend sidecar (+watchdog), setup wizard with dependency detection and intelligent defaults, provider failover, structured logging + in-app viewer, review loops on script/SEO/thumbnail, offline `echo` provider, 19-check end-to-end smoke test in CI, full user docs
 
+- **v1.2.0 — pure-ComfyUI studio** — workflow discovery/upload/classification/flags, automatic selection with failure fallback, video stage with auto-import + timeline assembly, captions stage + burn, Create flow, focused sidebar, retry-stage; Whisper/TTS removed
+
 ## In Progress
 
 _(updated per milestone — empty when the tree is green)_

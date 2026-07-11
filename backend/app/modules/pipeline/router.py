@@ -97,6 +97,25 @@ def run_all(run_id: int, db: DB, runs: Runs, background: bool = False):
     return {"entries": entries, "run": runs.get(run_id)}
 
 
+class RetryStageRequest(BaseModel):
+    stage: str
+
+
+@router.post("/runs/{run_id}/retry-stage")
+def retry_stage(run_id: int, payload: RetryStageRequest, db: DB, runs: Runs):
+    """Clear a stage's history (e.g. a skip after fixing workflows) so the next
+    /step or /run-all executes it again. Later stages are cleared too — they
+    depend on this stage's artifacts."""
+    run, _ = _get_run(db, runs, run_id)
+    if run.status == "running":
+        raise HTTPException(409, "run is executing in the background")
+    if payload.stage not in service.STAGE_NAMES:
+        raise HTTPException(422, f"unknown stage; one of {service.STAGE_NAMES}")
+    cut = service.STAGE_NAMES.index(payload.stage)
+    keep = [e for e in run.log if e["stage"] in service.STAGE_NAMES[:cut]]
+    return runs.update(run_id, status="idle", current_stage="", log=keep)
+
+
 @router.delete("/runs/{run_id}", status_code=204)
 def delete_run(run_id: int, runs: Runs):
     if not runs.delete(run_id):

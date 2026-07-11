@@ -72,12 +72,15 @@ def upload(db: Session, name: str, payload: dict) -> WorkflowDef:
 
 
 def select_workflow(
-    db: Session, preferred_id: int | None = None, want: tuple[str, ...] = ()
+    db: Session,
+    preferred_id: int | None = None,
+    want: tuple[str, ...] = (),
+    exclude: tuple[int, ...] = (),
 ) -> tuple[WorkflowDef | None, str]:
     """Best enabled workflow. Order: explicit preference → favorites → type
     priority (video_lipsync > avatar > video > image) → newest. Returns
     (workflow, note); note explains degradations ("only image workflows")."""
-    if preferred_id:
+    if preferred_id and preferred_id not in exclude:
         preferred = db.get(WorkflowDef, preferred_id)
         if preferred is not None and preferred.enabled and preferred.graph:
             return preferred, f"brand-preferred workflow '{preferred.name}'"
@@ -85,7 +88,7 @@ def select_workflow(
     candidates = [
         wf
         for wf in db.scalars(select(WorkflowDef).where(WorkflowDef.kind == "comfyui"))
-        if wf.enabled and wf.graph
+        if wf.enabled and wf.graph and wf.id not in exclude
     ]
     if want:
         wanted = [wf for wf in candidates if wf.wf_type in want]

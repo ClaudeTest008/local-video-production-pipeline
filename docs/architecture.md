@@ -85,7 +85,7 @@ Events currently emitted:
 | `<entity>.created` / `.updated` / `.deleted` | every `crud_router` module | `id` |
 | `comfyui.job.queued` | comfyui queue | `id`, `prompt_id` |
 | `comfyui.job.finished` | comfyui job poll | `id`, `status` |
-| `asset.generated` | comfyui (job done), timeline (ffmpeg render), voice (TTS) | `project_id`, plus `outputs` or `kind`/`path` |
+| `asset.generated` | comfyui (job done), timeline (ffmpeg render) | `project_id`, plus `outputs` or `kind`/`path` |
 | `agent.ran` | agents service | `agent_id`, `conversation_id` |
 | `mcp.discovered` / `mcp.toggled` | mcp router | `added` / `id`, `enabled` |
 

@@ -22,7 +22,6 @@ The [Model Context Protocol](https://modelcontextprotocol.io) is an open standar
 | `brave-search` | Web search via Brave | `npx @modelcontextprotocol/server-brave-search` |
 | `comfyui` | Drive a local ComfyUI instance | `uvx comfyui-mcp` |
 | `ffmpeg` | Media processing via FFmpeg | `uvx ffmpeg-mcp` |
-| `whisper` | Local speech-to-text | `uvx whisper-mcp` |
 | `browser` | Headless browser fetch/read | `npx @modelcontextprotocol/server-puppeteer` |
 | `local-rag` | Query the local ChromaDB knowledge base | `uvx chroma-mcp` |
 

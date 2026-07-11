@@ -184,6 +184,27 @@ def test_step_retries_failed_stage(client):
         client.patch(f"/api/agents/{researcher['id']}", json={"provider": "scripted"})
 
 
+def test_retry_stage_clears_skip(client):
+    _scripted_agents(client)
+    project = client.post("/api/projects", json={"name": "RetrySkip", "idea": "x"}).json()
+    run = client.post(
+        "/api/pipeline/runs", json={"project_id": project["id"], "mode": "producer"}
+    ).json()
+    result = client.post(f"/api/pipeline/runs/{run['id']}/run-all").json()
+    assert result["run"]["status"] == "done"
+
+    # video was skipped (no ComfyUI); after fixing workflows the user retries it
+    retried = client.post(
+        f"/api/pipeline/runs/{run['id']}/retry-stage", json={"stage": "video"}
+    ).json()
+    stages_left = {e["stage"] for e in retried["log"]}
+    assert "video" not in stages_left and "captions" not in stages_left
+    assert "prompts" in stages_left
+
+    nxt = client.post(f"/api/pipeline/runs/{run['id']}/step").json()
+    assert nxt["entry"]["stage"] == "video"
+
+
 def test_parsers_fallbacks():
     assert parsers.parse_scenes("no markers at all")[0]["title"] == "Full piece"
     scenes = parsers.parse_scenes("SCENE: A | not-a-number | desc")

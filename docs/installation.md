@@ -12,7 +12,6 @@ How to install the LVPP backend, web app, and (optionally) the desktop shell on 
 | FFmpeg | any recent | timeline render (optional) | must be on `PATH`; without it, render endpoints return the command as a dry-run |
 | ComfyUI | local install | image generation (optional) | default endpoint `http://127.0.0.1:8188` |
 | Ollama | local install | local LLM chat (optional) | default endpoint `http://127.0.0.1:11434`; default provider/model is `ollama` / `llama3.1` |
-| piper | CLI on `PATH` | local TTS (optional) | other TTS engines (xtts, kokoro) are local HTTP servers, no install step here |
 
 Everything optional degrades gracefully: the backend probes availability instead of assuming it.
 
@@ -53,7 +52,6 @@ Install only what you use:
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, black |
 | `postgres` | `pip install -e ".[postgres]"` | PostgreSQL driver (psycopg2) |
 | `rag` | `pip install -e ".[rag]"` | ChromaDB + sentence-transformers for research/RAG |
-| `transcribe` | `pip install -e ".[transcribe]"` | faster-whisper for subtitles/transcription |
 | `agents` | `pip install -e ".[agents]"` | LangGraph for agent workflows |
 
 Extras combine: `pip install -e ".[dev,postgres,rag]"`.

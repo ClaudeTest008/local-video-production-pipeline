@@ -4,6 +4,29 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-07-11
+
+**Pure-ComfyUI Creator OS.** Video, voice, lip-sync, and animation all come from your ComfyUI workflows — no bundled TTS, no Whisper, no separate audio stack.
+
+### Added
+- **Workflow discovery** — one click imports every workflow saved in your ComfyUI library; UI-format graphs are converted automatically (issues reported per node, never guessed); Browse-Templates index surfaced
+- **Workflow upload** — drop any workflow `.json` (UI or API format) through the app
+- **Workflow management** — type classification (Video + Lip-Sync / Avatar / Cinematic Video / Image), referenced models, VRAM estimate, enabled/favorite flags; users never edit nodes
+- **Automatic workflow selection** — integrated video+voice workflows first, favorites win within the capable pool, brand preference overrides; the Create page previews the plan
+- **Video pipeline stage** — renders every scene through the selected workflow, waits, auto-imports outputs into project assets, and assembles the timeline; on ComfyUI rejection the stage flags the workflow with the node-level error and automatically tries the next candidate
+- **Captions stage** — script-timed caption track + SRT in the project tree; timeline export can burn captions into the video
+- **Create page** — idea in, autonomous background production out; prominent sidebar button
+- **Timeline editing** — clip reorder/remove, burn-captions toggle, AI editing box (the Editor agent proposes concrete edit plans)
+- `POST /pipeline/runs/{id}/retry-stage` — re-run a skipped/errored stage after fixing its cause
+- Focused sidebar (core loop up top, power tools under Advanced)
+
+### Removed
+- **Whisper and all standalone TTS engines** (piper/xtts/kokoro), the voice module, `/api/subtitles/transcribe`, the whisper MCP catalog entry, and the `[transcribe]` extra. Voice comes from ComfyUI AV workflows (LTX-2.3 class generates synchronized speech + video from text).
+
+### Known limitations
+- The built-in UI→API converter handles standard graphs; heavily customized nodes (LTXDirector-style) and subgraphs may fail validation — the app flags them and falls back; export those from ComfyUI as **API format** and upload instead
+- Migration `ff13f0dcce8f`
+
 ## [1.0.1] — 2026-07-11
 
 Acceptance-testing patch: every fix below came from running the installed app end-to-end and producing a real video (see `docs/acceptance-report-v1.0.0.md`).
@@ -70,6 +93,7 @@ First public release: an installable Windows desktop app a non-developer can set
 - Docs suite (12), CI (ruff/black/pytest, tsc/eslint/next build), idempotent seed, Alembic initial schema `182a492d4e63`
 - Review fixes: README quick start, ESLint 9 flat config, Tauri static-export trigger, Windows WebView2 CORS
 
+[1.2.0]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v1.2.0
 [1.0.1]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v1.0.1
 [1.0.0]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v1.0.0
 [0.2.0]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v0.2.0

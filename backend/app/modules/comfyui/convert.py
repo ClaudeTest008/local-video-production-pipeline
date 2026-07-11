@@ -31,6 +31,30 @@ SUBGRAPH_INPUT_ID = -10
 SUBGRAPH_OUTPUT_ID = -20
 
 
+def _link_id(link) -> int | None:
+    """Top-level graphs serialize links as [id, origin_id, origin_slot,
+    target_id, target_slot, type]; subgraph definitions serialize them as
+    {"id", "origin_id", "origin_slot", "target_id", "target_slot", "type"}
+    dicts. Both shapes occur in the same file — normalize both."""
+    if isinstance(link, list) and link:
+        return link[0]
+    if isinstance(link, dict):
+        return link.get("id")
+    return None
+
+
+def _link_fields(link) -> tuple[int, int, int, int] | None:
+    """(origin_id, origin_slot, target_id, target_slot), either link shape."""
+    if isinstance(link, list) and len(link) >= 5:
+        return link[1], link[2], link[3], link[4]
+    if isinstance(link, dict):
+        try:
+            return link["origin_id"], link["origin_slot"], link["target_id"], link["target_slot"]
+        except KeyError:
+            return None
+    return None
+
+
 def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
     """Inline ComfyUI subgraph instances into their constituent nodes.
 
@@ -62,9 +86,10 @@ def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
                 pass
     for ls in link_lists:
         for link in ls or []:
-            if isinstance(link, list) and link:
+            lid = _link_id(link)
+            if lid is not None:
                 try:
-                    max_link = max(max_link, int(link[0]))
+                    max_link = max(max_link, int(lid))
                 except (TypeError, ValueError):
                     pass
     counter = {"node": max_node + 1, "link": max_link + 1}
@@ -79,11 +104,11 @@ def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
     def flatten_level(nodes: list, links: list, input_binding: dict) -> dict:
         """Emit this level's real nodes; return {output_slot: producer} so a
         parent can resolve links to this subgraph's outputs."""
-        link_by_id = {
-            link[0]: link
-            for link in links or []
-            if isinstance(link, list) and len(link) >= 5
-        }
+        link_by_id: dict[int, tuple[int, int, int, int]] = {}
+        for link in links or []:
+            lid, fields = _link_id(link), _link_fields(link)
+            if lid is not None and fields is not None:
+                link_by_id[lid] = fields
         real_final: dict = {}
         real_node: dict = {}
         instances: dict = {}
@@ -108,8 +133,8 @@ def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
             return None
 
         def resolve_link(link_id):
-            link = link_by_id.get(link_id)
-            return resolve(link[1], link[2]) if link else None
+            fields = link_by_id.get(link_id)
+            return resolve(fields[0], fields[1]) if fields else None
 
         def inline(inst_id: int) -> dict:
             if inst_id in inlined:
@@ -166,11 +191,12 @@ def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
                 node_copy["mode"] = n["mode"]
             out_nodes.append(node_copy)
 
-        return {
-            link[4]: resolve(link[1], link[2])
-            for link in links or []
-            if isinstance(link, list) and len(link) >= 5 and link[3] == SUBGRAPH_OUTPUT_ID
-        }
+        boundary: dict = {}
+        for link in links or []:
+            fields = _link_fields(link)
+            if fields is not None and fields[2] == SUBGRAPH_OUTPUT_ID:
+                boundary[fields[3]] = resolve(fields[0], fields[1])
+        return boundary
 
     flatten_level(ui.get("nodes"), ui.get("links"), {})
     flat = dict(ui)
@@ -202,18 +228,40 @@ def _set_node_map(nodes: list) -> dict[str, dict]:
     }
 
 
+def _bypass_passthrough(node: dict, slot: int) -> int | None:
+    """ComfyUI's own bypass rewiring: a mode=4 node never executes — each
+    output is instead whatever same-typed input feeds it (same-slot preferred,
+    else the first input of matching type). Returns the link id to continue
+    resolving from, or None if the output has no matching passthrough (the
+    link is dropped, same as a real ComfyUI bypass with no compatible input)."""
+    outputs = node.get("outputs") or []
+    if slot >= len(outputs):
+        return None
+    out_type = outputs[slot].get("type")
+    inputs = node.get("inputs") or []
+    match = None
+    if slot < len(inputs) and inputs[slot].get("type") == out_type:
+        match = inputs[slot]
+    if match is None:
+        match = next((i for i in inputs if i.get("type") == out_type), None)
+    return match.get("link") if match else None
+
+
 def _resolve_reroutes(
     node_by_id: dict, links: dict, src: tuple[int, int], set_by_name: dict | None = None
-) -> tuple[int, int]:
-    """Follow Reroute chains and KJNodes Set/Get variable passthroughs to the
-    real producer. Get<name> resolves to whatever feeds the matching Set<name>;
-    both are frontend-only bookkeeping with no /prompt execution counterpart."""
+) -> tuple[int | None, int]:
+    """Follow Reroute chains, KJNodes Set/Get variable passthroughs, and
+    bypassed (mode=4) nodes to the real producer. Get<name> resolves to
+    whatever feeds the matching Set<name>; a muted (mode=2) node or a bypassed
+    node with no type-matched input passthrough resolves to (None, 0) —
+    nothing feeds the consumer, same as ComfyUI's own bypass/mute semantics."""
     set_by_name = set_by_name or {}
     for _ in range(50):
         node = node_by_id.get(src[0])
         if node is None:
             return src
         node_type = node.get("type")
+        mode = node.get("mode")
         if node_type in ("Reroute", "RerouteNode", "SetNode"):
             in_links = [
                 i.get("link") for i in node.get("inputs", []) if i.get("link") is not None
@@ -232,6 +280,13 @@ def _resolve_reroutes(
             if not in_links:
                 return src
             src = links.get(in_links[0], src)
+        elif mode == 2:
+            return (None, 0)
+        elif mode == 4:
+            link_id = _bypass_passthrough(node, src[1])
+            if link_id is None:
+                return (None, 0)
+            src = links.get(link_id, (None, 0))
         else:
             return src
     return src
@@ -269,8 +324,9 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
         if node.get("mode") == 2:  # muted — drop; consumers will report missing input
             issues.append(f"node {node['id']} ({node_type}) is muted; dropped")
             continue
-        if node.get("mode") == 4:
-            issues.append(f"node {node['id']} ({node_type}) is bypassed; kept as-is")
+        if node.get("mode") == 4:  # bypassed — never executes; consumers rewire around it
+            issues.append(f"node {node['id']} ({node_type}) is bypassed; rewired around")
+            continue
 
         inputs: dict = {}
         connected = set()
@@ -279,8 +335,12 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
                 src = _resolve_reroutes(
                     node_by_id, links, links.get(inp["link"], (None, 0)), set_by_name
                 )
-                src_type = node_by_id.get(src[0], {}).get("type") if src[0] is not None else None
-                if src[0] is None or src_type in ("Reroute", "RerouteNode", "SetNode", "GetNode"):
+                src_node = node_by_id.get(src[0]) if src[0] is not None else None
+                unresolved = src_node is not None and (
+                    src_node.get("type") in ("Reroute", "RerouteNode", "SetNode", "GetNode")
+                    or src_node.get("mode") in (2, 4)
+                )
+                if src[0] is None or unresolved:
                     issues.append(f"node {node['id']}: dangling link on '{inp.get('name')}'")
                     continue
                 inputs[inp["name"]] = [str(src[0]), src[1]]

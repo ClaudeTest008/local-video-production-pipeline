@@ -232,6 +232,7 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
     client = ComfyUIClient()
     if not client.is_available():
         return "skipped: ComfyUI not running"
+    object_info = client.object_info()  # drives dependency-aware workflow selection
     brand = db.get(Brand, project.brand_id) if project.brand_id else None
     scenes = [s for s in _scenes(db, project.id) if s.prompt]
     if not scenes:
@@ -254,6 +255,7 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
             ),
             want=("video_lipsync", "avatar", "video"),
             exclude=tuple(tried),
+            object_info=object_info,
         )
         if workflow is None:
             return f"skipped: {note}"

@@ -160,3 +160,45 @@ def test_ui_format_upload_converts(client, monkeypatch):
     ).json()
     assert uploaded["graph"]["2"]["inputs"]["text"] == "a castle at dawn"
     assert uploaded["meta"]["conversion_status"] == "ok"
+
+
+def test_selection_prefers_renderable_over_newer_unready(client, monkeypatch):
+    from app.modules.comfyui import client as comfy_client_mod
+
+    # isolate from workflows left by earlier tests in this session-scoped client
+    for wf in client.get("/api/workflows").json():
+        client.delete(f"/api/workflows/{wf['id']}")
+
+    # object_info registers KSampler+SaveVideo but NOT MissingVideoNode
+    fake_oi = {
+        "KSampler": {"input": {"required": {}}},
+        "SaveVideo": {"input": {"required": {}}},
+    }
+    monkeypatch.setattr(comfy_client_mod.ComfyUIClient, "is_available", lambda self: True)
+    monkeypatch.setattr(comfy_client_mod.ComfyUIClient, "object_info", lambda self, *a, **k: fake_oi)
+
+    ready = client.post(
+        "/api/workflows/upload",
+        json={"name": "ready-video", "workflow": {
+            "1": {"class_type": "KSampler", "inputs": {}},
+            "2": {"class_type": "SaveVideo", "inputs": {}},
+        }},
+    ).json()
+    # newer AND favorited, but references an unregistered node -> not renderable
+    broken = client.post(
+        "/api/workflows/upload",
+        json={"name": "broken-video", "workflow": {
+            "1": {"class_type": "MissingVideoNode", "inputs": {}},
+            "2": {"class_type": "SaveVideo", "inputs": {}},
+        }},
+    ).json()
+    client.patch(f"/api/workflows/{broken['id']}", json={"favorite": True})
+
+    pick = client.get("/api/workflows/selection").json()
+    assert pick["workflow_id"] == ready["id"]  # ready beats newer+favorited-but-broken
+
+    # when the only candidate is unrenderable, it is still returned WITH the missing list
+    client.patch(f"/api/workflows/{ready['id']}", json={"enabled": False})
+    pick = client.get("/api/workflows/selection").json()
+    assert pick["workflow_id"] == broken["id"]
+    assert "MissingVideoNode" in pick["note"]

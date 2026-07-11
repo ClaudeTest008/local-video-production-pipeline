@@ -79,11 +79,19 @@ def upload(payload: UploadRequest, db: DB):
 
 @router.get("/selection")
 def selection_preview(db: DB, preferred_id: int | None = None) -> dict:
-    """What automatic mode would pick right now, and why."""
+    """What automatic mode would pick right now, and why. When ComfyUI is
+    reachable, selection is dependency-aware — ready workflows are preferred
+    over ones whose nodes/models are not installed."""
+    from app.modules.comfyui.client import ComfyUIClient
     from app.modules.workflows.service import select_workflow
 
+    client = ComfyUIClient()
+    object_info = client.object_info() if client.is_available() else None
     wf, note = select_workflow(
-        db, preferred_id=preferred_id, want=("video_lipsync", "avatar", "video")
+        db,
+        preferred_id=preferred_id,
+        want=("video_lipsync", "avatar", "video"),
+        object_info=object_info,
     )
     return {
         "workflow_id": wf.id if wf else None,

@@ -122,19 +122,38 @@ def analyze_dependencies(graph: dict, object_info: dict) -> dict:
     }
 
 
+def _missing_summary(wf: WorkflowDef, object_info: dict) -> list[str]:
+    deps = analyze_dependencies(wf.graph, object_info)
+    return deps["missing_nodes"] + deps["missing_models"]
+
+
 def select_workflow(
     db: Session,
     preferred_id: int | None = None,
     want: tuple[str, ...] = (),
     exclude: tuple[int, ...] = (),
+    object_info: dict | None = None,
 ) -> tuple[WorkflowDef | None, str]:
     """Best enabled workflow. Order: explicit preference → favorites → type
     priority (video_lipsync > avatar > video > image) → newest. Returns
-    (workflow, note); note explains degradations ("only image workflows")."""
+    (workflow, note); note explains degradations ("only image workflows").
+
+    When ``object_info`` (the live ComfyUI node registry) is supplied, selection
+    becomes dependency-aware: a workflow whose custom nodes or models are not
+    installed can never render, so ready workflows are always preferred over
+    unrenderable ones regardless of favorite/recency. Automatic mode only falls
+    back to an unrenderable workflow when nothing ready exists, and the note
+    then names what is missing so the UI can guide the user.
+    """
     if preferred_id and preferred_id not in exclude:
         preferred = db.get(WorkflowDef, preferred_id)
         if preferred is not None and preferred.enabled and preferred.graph:
-            return preferred, f"brand-preferred workflow '{preferred.name}'"
+            note = f"brand-preferred workflow '{preferred.name}'"
+            if object_info is not None:
+                missing = _missing_summary(preferred, object_info)
+                if missing:
+                    note += f" — warning, not ready; missing: {', '.join(missing[:6])}"
+            return preferred, note
 
     candidates = [
         wf
@@ -154,6 +173,19 @@ def select_workflow(
             -(wf.id or 0),
         )
     )
+
+    if object_info is not None:
+        ready = [wf for wf in candidates if not _missing_summary(wf, object_info)]
+        if ready:
+            candidates = ready
+        else:
+            chosen = candidates[0]
+            missing = _missing_summary(chosen, object_info)
+            return chosen, (
+                f"auto-selected '{chosen.name}' ({chosen.wf_type}) — no ready workflow; "
+                f"it needs: {', '.join(missing[:6])}"
+            )
+
     chosen = candidates[0]
     note = f"auto-selected '{chosen.name}' ({chosen.wf_type})"
     if chosen.wf_type == "image":

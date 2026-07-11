@@ -4,6 +4,23 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-07-11
+
+**Real AI video, verified end-to-end.** The converter now handles modern ComfyUI serialization well enough that the LTX 2.3 Dual Character Lip Sync workflow imports, enqueues with zero node errors, and renders an actual H.264+AAC video (1440×768, 217 frames, 9s) through the app pipeline.
+
+### Fixed
+- **Schema self-heals on startup** — `init_db` runs `alembic upgrade head` (was `create_all`, which never adds columns; existing installs crashed with `no such column: workflow_defs.source`); frozen builds fall back to `create_all` if migration data is missing
+- **Paths anchored for desktop bundles** — relative sqlite/projects/log paths resolve against the backend root, not the launch cwd
+- **Converter**: subgraph flattening (incl. dict-shaped links), KJNodes SetNode/GetNode resolution, bypass (mode 4) rewiring with type-matched passthrough, muted-node handling, legacy PrimitiveNode inlining, modern `["COMBO", {options}]` widget recognition (was shifting every following widget), name-keyed `widgets_values` dicts (VHS), `COMFY_DYNAMICCOMBO_V3` sub-input expansion, model-path normalization to the server's exact combo entry on unique basename match
+- **False success eliminated** — `queue_prompt` rejects HTTP 200 responses carrying `node_errors` (ComfyUI silently drops invalid outputs and runs the rest); the video stage reports `skipped` with the cause when a render finishes without producing frames
+- **Ollama resilience** — a configured-but-not-pulled chat model falls back to an installed one instead of 404-failing every pipeline stage
+- **Workflow selection** — dependency-aware (never picks a workflow whose nodes/models are missing when a ready one exists), deprioritizes workflows ComfyUI already rejected, exhausts all candidates instead of giving up after 3; utility/LLM graphs that merely load media are no longer classified as video workflows
+
+### Added
+- `GET /api/workflows/{id}/dependencies` — missing custom nodes / models per workflow, against the live server
+- `docs/workflow-compatibility.md` + `backend/scripts/wf_sweep.py` — reproducible compatibility report (26 workflows, 8 render-ready at time of writing)
+- Regression tests for every converter/client/selection fix (97 passing)
+
 ## [1.2.0] — 2026-07-11
 
 **Pure-ComfyUI Creator OS.** Video, voice, lip-sync, and animation all come from your ComfyUI workflows — no bundled TTS, no Whisper, no separate audio stack.

@@ -97,8 +97,8 @@ Project detail uses a query-param route (`/project?id=N`) instead of a dynamic s
 The release pipeline, end to end:
 
 1. **Backend sidecar** — from `backend/` (venv active):
-   `pyinstaller --noconfirm --onefile --console --name lvpp-backend --collect-submodules app --collect-all sqlalchemy run_server.py`
-   then copy `dist/lvpp-backend.exe` to `apps/desktop/src-tauri/binaries/lvpp-backend-x86_64-pc-windows-msvc.exe` (Tauri requires the target triple suffix). The frozen backend stores data under `%LOCALAPPDATA%\LVPP Studio` and exits with the shell (parent-PID watchdog).
+   `pyinstaller --noconfirm --onefile --console --name lvpp-backend --collect-submodules app --collect-all sqlalchemy --collect-all alembic --add-data "alembic.ini;." --add-data "alembic;alembic" run_server.py`
+   then copy `dist/lvpp-backend.exe` to `apps/desktop/src-tauri/binaries/lvpp-backend-x86_64-pc-windows-msvc.exe` (Tauri requires the target triple suffix). The `--add-data` flags bundle the migration scripts so startup `alembic upgrade head` self-heals user databases; without them the backend falls back to `create_all` (fresh schemas only, no upgrades). The frozen backend stores data under `%APPDATA%\LVPP Studio` and exits with the shell (parent-PID watchdog).
 2. **Icons** — `python scripts/make_icon.py` regenerates `app-icon.png`; `npx tauri icon ../../app-icon.png` derives all sizes (checked in under `src-tauri/icons/`).
 3. **Installer** — `cd apps/desktop && npx tauri build`. `beforeBuildCommand` builds the web static export automatically (`TAURI_ENV_PLATFORM` triggers `output: "export"`); NSIS per-user installer lands at `src-tauri/target/release/bundle/nsis/LVPP Studio_<version>_x64-setup.exe`.
 4. **Portable** — zip `target/release/lvpp-desktop.exe` together with the sidecar `lvpp-backend-…exe` from the same folder; both must sit side by side.

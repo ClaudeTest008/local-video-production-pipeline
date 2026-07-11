@@ -18,9 +18,7 @@ def _cli(name: str, version_args: list[str] | None = None) -> dict:
     result: dict = {"found": path is not None, "path": path}
     if path and version_args:
         try:
-            proc = subprocess.run(
-                [name, *version_args], capture_output=True, text=True, timeout=10
-            )
+            proc = subprocess.run([name, *version_args], capture_output=True, text=True, timeout=10)
             result["version"] = (proc.stdout or proc.stderr).strip().splitlines()[0][:120]
         except (subprocess.SubprocessError, OSError, IndexError):
             pass

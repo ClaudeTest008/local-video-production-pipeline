@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Root folder where per-project asset trees are created.
     projects_root: Path = Path("./data/projects")
+    log_dir: Path = Path("./data/logs")
 
     # External services (all optional, all local-first defaults)
     comfyui_url: str = "http://127.0.0.1:8188"

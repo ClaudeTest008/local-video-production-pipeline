@@ -39,6 +39,18 @@ def _comfy_health() -> dict:
     return health
 
 
+@router.get("/logs")
+def logs(lines: int = 200, level: str = "") -> dict:
+    """Tail the application log for in-app troubleshooting."""
+    log_file = settings.log_dir / "lvpp.log"
+    if not log_file.exists():
+        return {"lines": [], "file": str(log_file)}
+    tail = log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-2000:]
+    if level:
+        tail = [line for line in tail if f" {level.upper()} " in f" {line} "]
+    return {"lines": tail[-min(lines, 1000) :], "file": str(log_file)}
+
+
 @router.get("/detect")
 def detect() -> dict:
     """Full dependency scan for the setup wizard (slow-ish: probes every tool)."""

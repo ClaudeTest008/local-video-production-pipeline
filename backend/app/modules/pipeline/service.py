@@ -290,8 +290,9 @@ def _stage_seo(db: Session, project: Project, context: str) -> str:
         project,
         context,
     )
+    content, review = _quality_review(db, project, context, "seo pack", content, "seo_specialist")
     parsed = parsers.parse_seo(content)
-    Repository(SeoPack, db).create(project_id=project.id, meta={"raw": content}, **parsed)
+    Repository(SeoPack, db).create(project_id=project.id, meta={"raw": content, **review}, **parsed)
     return f"seo pack: {parsed['title'][:60]}"
 
 
@@ -303,8 +304,11 @@ def _stage_thumbnail(db: Session, project: Project, context: str) -> str:
         project,
         context,
     )
+    content, review = _quality_review(
+        db, project, context, "thumbnail concepts", content, "thumbnail_designer"
+    )
     Repository(Thumbnail, db).create(
-        project_id=project.id, title_text=project.name[:200], meta={"concepts": content}
+        project_id=project.id, title_text=project.name[:200], meta={"concepts": content, **review}
     )
     return "thumbnail concepts saved"
 

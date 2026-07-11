@@ -21,6 +21,8 @@ class ScriptedProvider(ChatProvider):
             content = "1. Hook is weak — open on the sack of the city.\nVERDICT: REVISE"
         elif "Revise the script" in ask:
             content = "revised script: opens on the sack of the city"
+        elif ask.startswith("Critique this"):
+            content = "Solid work.\nVERDICT: APPROVE"
         else:
             content = f"generated: {ask[:60]}"
         return ChatResponse(content=content, model=model, provider=self.name)

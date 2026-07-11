@@ -2,6 +2,8 @@
 configured provider, persists the conversation.
 """
 
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.core.ai import registry as ai_registry
@@ -12,6 +14,7 @@ from app.core.repository import Repository
 from app.modules.agents.models import AgentConversation, AgentMessage, AgentProfile
 
 HISTORY_LIMIT = 20
+logger = logging.getLogger(__name__)
 
 
 def run_agent(
@@ -54,7 +57,21 @@ def run_agent(
     )
     model = agent.model or model_override or runtime_model or settings.default_chat_model
     provider = ai_registry.get_provider(provider_name)
-    response = provider.chat(chat, model=model, temperature=agent.temperature)
+    try:
+        response = provider.chat(chat, model=model, temperature=agent.temperature)
+    except Exception as first_error:
+        # failover: one retry on the configured fallback provider (Settings key
+        # "fallback_chat_provider"), never the one that just failed
+        fallback = settings_service.get_value(db, "fallback_chat_provider")
+        fallback_model = settings_service.get_value(db, "fallback_chat_model") or model
+        if not fallback or fallback == provider_name:
+            raise
+        logger.warning(
+            "provider %s failed (%s) — failing over to %s", provider_name, first_error, fallback
+        )
+        response = ai_registry.get_provider(fallback).chat(
+            chat, model=fallback_model, temperature=agent.temperature
+        )
 
     messages.create(conversation_id=conversation.id, role="user", content=user_input)
     messages.create(

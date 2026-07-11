@@ -26,6 +26,9 @@ def list_providers() -> list[str]:
     return sorted(_factories)
 
 
+from app.core.ai.echo import EchoProvider  # noqa: E402
+
+register("echo", EchoProvider)
 register("ollama", OllamaProvider)
 register("anthropic", AnthropicProvider)
 register("gemini", GeminiProvider)

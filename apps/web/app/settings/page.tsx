@@ -69,6 +69,34 @@ function DefaultsForm() {
   );
 }
 
+function LogViewer() {
+  const [open, setOpen] = useState(false);
+  const logs = useQuery({
+    queryKey: ["logs"],
+    queryFn: () => api.get<{ lines: string[]; file: string }>("/system/logs?lines=200"),
+    enabled: open,
+    refetchInterval: open ? 5000 : false,
+  });
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium">Application log</h2>
+        <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      </div>
+      {open && (
+        <>
+          <p className="mt-1 font-mono text-[10px] text-muted">{logs.data?.file}</p>
+          <pre className="mt-2 max-h-80 overflow-auto rounded-md bg-bg p-3 font-mono text-[11px] leading-relaxed text-muted">
+            {logs.data?.lines.join("\n") || "No log entries yet."}
+          </pre>
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
@@ -86,6 +114,7 @@ export default function SettingsPage() {
         <h2 className="mb-3 text-sm font-medium">Chat defaults</h2>
         <DefaultsForm />
       </Card>
+      <LogViewer />
     </div>
   );
 }

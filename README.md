@@ -25,7 +25,11 @@ docs/           Architecture, guides, roadmap
 examples/       Example ComfyUI workflows, sample project, seeds
 ```
 
-## Quick start
+## Install (Windows)
+
+Grab **LVPP Studio_x64-setup.exe** from the [latest release](https://github.com/ClaudeTest008/local-video-production-pipeline/releases) and run it — the backend is bundled, a setup wizard checks your machine, and you're producing in minutes. See [docs/quick-start.md](docs/quick-start.md).
+
+## Quick start (from source)
 
 Prereqs: Python ≥ 3.11, Node ≥ 20, (optional) Rust toolchain for the desktop build, (optional) FFmpeg on PATH, (optional) local [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and [Ollama](https://ollama.com).
 
@@ -50,6 +54,9 @@ cd apps/desktop && npm install && npm run dev
 
 | Doc | Contents |
 |---|---|
+| [docs/quick-start.md](docs/quick-start.md) | Install → first production in 5 minutes |
+| [docs/user-guide.md](docs/user-guide.md) | Every surface of the studio |
+| [docs/faq.md](docs/faq.md) | Privacy, offline use, models, common questions |
 | [docs/vision.md](docs/vision.md) | The Creator OS vision, autopilot ladder, learning loop |
 | [docs/architecture.md](docs/architecture.md) | Clean architecture, module system, event bus |
 | [docs/folder-structure.md](docs/folder-structure.md) | Repo + project asset layout |

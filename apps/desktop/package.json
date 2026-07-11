@@ -1,8 +1,8 @@
 {
   "name": "@lvpp/desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Tauri desktop shell for LVPP Studio (not part of the npm workspace — needs the Rust toolchain)",
+  "description": "Tauri desktop shell for LVPP Studio (not part of the npm workspace; needs the Rust toolchain)",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",

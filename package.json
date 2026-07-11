@@ -1,7 +1,7 @@
 {
   "name": "local-video-production-pipeline",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Local-first AI-powered content production studio for YouTube and creator platforms",
   "workspaces": [
     "apps/web",

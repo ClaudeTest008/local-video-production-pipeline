@@ -92,17 +92,24 @@ LVPP_DESKTOP=1 npm run build:web
 
 Project detail uses a query-param route (`/project?id=N`) instead of a dynamic segment specifically so static export works — keep new routes export-compatible (no `[param]` segments without `generateStaticParams`).
 
-## Desktop packaging (Tauri) — current status
+## Desktop packaging (Tauri)
 
-Installer bundling is **deliberately disabled**: `apps/desktop/src-tauri/tauri.conf.json` sets `"bundle": { "active": false }`, and no app icons are checked in. `tauri build` therefore compiles the app but produces no installer. Shipping an installer is a manual, not-yet-done step:
+The release pipeline, end to end:
 
-1. Install the Rust toolchain (stable) and `cd apps/desktop && npm install`.
-2. Generate icons: `npx tauri icon path/to/icon.png` (writes `src-tauri/icons/`).
-3. Set `"bundle": { "active": true }` in `tauri.conf.json` (plus platform targets as needed).
-4. Resolve the static-export caveat above — `beforeBuildCommand` runs `npm run build:web` under the Tauri CLI (`TAURI_ENV_PLATFORM` set, so export mode is automatic) and the shell serves `apps/web/out/`.
-5. `npm run build` (i.e. `tauri build`) to produce the platform installer.
+1. **Backend sidecar** — from `backend/` (venv active):
+   `pyinstaller --noconfirm --onefile --console --name lvpp-backend --collect-submodules app --collect-all sqlalchemy run_server.py`
+   then copy `dist/lvpp-backend.exe` to `apps/desktop/src-tauri/binaries/lvpp-backend-x86_64-pc-windows-msvc.exe` (Tauri requires the target triple suffix). The frozen backend stores data under `%LOCALAPPDATA%\LVPP Studio` and exits with the shell (parent-PID watchdog).
+2. **Icons** — `python scripts/make_icon.py` regenerates `app-icon.png`; `npx tauri icon ../../app-icon.png` derives all sizes (checked in under `src-tauri/icons/`).
+3. **Installer** — `cd apps/desktop && npx tauri build`. `beforeBuildCommand` builds the web static export automatically (`TAURI_ENV_PLATFORM` triggers `output: "export"`); NSIS per-user installer lands at `src-tauri/target/release/bundle/nsis/LVPP Studio_<version>_x64-setup.exe`.
+4. **Portable** — zip `target/release/lvpp-desktop.exe` together with the sidecar `lvpp-backend-…exe` from the same folder; both must sit side by side.
 
-Treat desktop packaging as roadmap, not a supported release path today.
+### Code signing
+
+Release artifacts are currently **unsigned** (SmartScreen warns on first run). To sign: obtain an OV/EV code-signing certificate, then set `bundle.windows.certificateThumbprint` (+ `digestAlgorithm`, `timestampUrl`) in `tauri.conf.json`, or sign post-build with `signtool sign /sha1 <thumbprint> /tr http://timestamp.digicert.com /td sha256 /fd sha256 <artifact>`. Sign both the installer and the sidecar exe.
+
+### Auto-updates
+
+Not enabled in v1.0 (needs a signing keypair + update server/manifest). Tauri's updater plugin is the intended path — roadmap.
 
 ## CI overview
 

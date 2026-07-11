@@ -1,6 +1,6 @@
 [project]
 name = "lvpp-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "Local Video Production Pipeline backend"
 requires-python = ">=3.11"
 dependencies = [

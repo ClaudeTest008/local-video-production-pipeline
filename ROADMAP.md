@@ -21,12 +21,15 @@ The vision lives in [docs/vision.md](docs/vision.md). This file tracks execution
 - **Background pipeline execution** — threaded `run-all?background=true`, polling, stage retry, interrupted-run recovery
 - **Brand engine preferences** — provider/model/ComfyUI-workflow per brand, honored across all agent runs and the images stage
 - **System health + studio dashboard** — `/api/system/health` aggregate; home page is the studio overview (project list at `/projects`)
+- **v1.0.0 release** — Windows NSIS installer with bundled backend sidecar (+watchdog), setup wizard with dependency detection and intelligent defaults, provider failover, structured logging + in-app viewer, review loops on script/SEO/thumbnail, offline `echo` provider, 19-check end-to-end smoke test in CI, full user docs
 
 ## In Progress
 
 _(updated per milestone — empty when the tree is green)_
 
-## Planned
+## Planned (v1.1+)
+
+Post-1.0 priorities, roughly ordered: code-signed + auto-updating builds, YouTube publishing, Studio-mode calendar planning, trend collectors, WebSocket progress.
 
 | Item | What exists today | What's missing |
 |---|---|---|

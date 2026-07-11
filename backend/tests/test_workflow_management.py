@@ -99,6 +99,19 @@ def test_classify():
     avatar = classify("LongCat Video Avatar", {"1": {"class_type": "SaveVideo", "inputs": {}}})
     assert avatar["wf_type"] == "avatar"
 
+    # a utility/LLM graph that only LOADS media (no sampler/save/decode) is not a
+    # video candidate, even though LoadVideo/LoadAudio match the media hints
+    util = classify(
+        "llm text gen",
+        {
+            "1": {"class_type": "TextGenerate", "inputs": {}},
+            "2": {"class_type": "LoadVideo", "inputs": {}},
+            "3": {"class_type": "LoadAudio", "inputs": {}},
+            "4": {"class_type": "PreviewAny", "inputs": {}},
+        },
+    )
+    assert util["wf_type"] == "other"
+
 
 def test_upload_and_selection(client):
     # image workflow uploaded (API format)

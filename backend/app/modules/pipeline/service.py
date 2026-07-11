@@ -244,8 +244,12 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
     workflow = None
     note = ""
     jobs = []
-    # a workflow that ComfyUI rejects gets flagged and the next candidate is tried
-    for _attempt in range(3):
+    # A workflow ComfyUI rejects (missing input, bad widget mapping) is flagged
+    # and the next candidate tried. Keep falling back until one enqueues — giving
+    # up after a few tries stranded known-good workflows behind ones with
+    # converter issues. select_workflow returns None once candidates are
+    # exhausted; the cap is just a runaway guard.
+    for _attempt in range(12):
         workflow, note = select_workflow(
             db,
             preferred_id=(

@@ -7,6 +7,10 @@ AUDIO_HINTS = ("audio", "lipsync", "lip_sync", "tts", "speech", "voice", "sonic"
 VIDEO_HINTS = ("video", "ltxv", "ltx", "wan", "svd", "animatediff", "cogvideo", "vhs_", "hunyuan")
 NAME_LIPSYNC = ("lip sync", "lipsync", "lip-sync", "talking", "avatar", "character voice")
 NAME_VIDEO = ("video", "director", "cinematic", "i2v", "img2vid", "animation", "movie", "scene")
+# a real render/output node — tells a generator apart from a utility/LLM graph
+# that merely *loads* media (LoadVideo/LoadAudio inputs match the media hints
+# but produce nothing renderable).
+GEN_HINTS = ("sampler", "save", "vaedecode", "videocombine", "createvideo", "decode")
 
 
 def classify(name: str, graph: dict) -> dict:
@@ -16,13 +20,14 @@ def classify(name: str, graph: dict) -> dict:
 
     has_audio = any(h in classes for h in AUDIO_HINTS) or any(h in lname for h in NAME_LIPSYNC)
     has_video = any(h in classes for h in VIDEO_HINTS) or any(h in lname for h in NAME_VIDEO)
+    has_generation = any(h in classes for h in GEN_HINTS)
     has_image_out = "saveimage" in classes
 
-    if has_video and (has_audio or any(h in lname for h in NAME_LIPSYNC)):
+    if has_video and has_generation and (has_audio or any(h in lname for h in NAME_LIPSYNC)):
         wf_type = "avatar" if ("avatar" in lname or "talking" in lname) else "video_lipsync"
-    elif has_video:
+    elif has_video and has_generation:
         wf_type = "video"
-    elif "saveaudio" in classes or "audio" in classes:
+    elif "saveaudio" in classes or ("audio" in classes and has_generation):
         wf_type = "audio"
     elif has_image_out:
         wf_type = "image"

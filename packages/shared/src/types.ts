@@ -26,8 +26,53 @@ export const PIPELINE_STAGES = [
 
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
+export interface Brand extends Timestamped {
+  name: string;
+  description: string;
+  voice: string;
+  style: string;
+  audience: string;
+  guidelines: string;
+  platforms: string[];
+  schedule: Record<string, unknown>;
+  goals: string;
+  memory: Record<string, unknown>;
+  meta: Record<string, unknown>;
+}
+
+export interface Opportunity extends Timestamped {
+  brand_id: number | null;
+  topic: string;
+  angle: string;
+  rationale: string;
+  scores: Record<string, number>;
+  status: "suggested" | "approved" | "rejected" | "produced";
+  sources: string[];
+  meta: Record<string, unknown>;
+}
+
+export interface PipelineRun extends Timestamped {
+  project_id: number;
+  mode: "manual" | "assisted" | "producer";
+  status: "idle" | "running" | "done" | "error";
+  current_stage: string;
+  log: { stage: string; status: string; detail: string }[];
+  meta: Record<string, unknown>;
+}
+
+export interface Learning extends Timestamped {
+  brand_id: number | null;
+  project_id: number | null;
+  kind: string;
+  key: string;
+  insight: string;
+  data: Record<string, unknown>;
+  score: number;
+}
+
 export interface Project extends Timestamped {
   name: string;
+  brand_id: number | null;
   description: string;
   status: PipelineStage;
   idea: string;

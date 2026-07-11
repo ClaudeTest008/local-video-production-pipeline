@@ -11,6 +11,7 @@ What is built, what is next, and — for each "next" item — what already exist
 | 3 | Web UI (Next.js app shell, module pages, chat dock, command palette) + shared packages (`@lvpp/shared` client/types, `@lvpp/ui`) | Done |
 | 4 | Tauri desktop shell scaffold (window, CSP for backend + ComfyUI, dev wiring) | Done — scaffold only; packaging is Next |
 | 5 | Docs, examples, seed data, CI (ruff/black/pytest + typecheck/build) | Done |
+| 6 | Creator-OS backbone — brands (multi-brand identities), pipeline orchestrator (assisted/producer autonomous runs), strategy center (scored opportunities → projects), knowledge engine (event-driven learnings → agent context), workflow render stats | Done — see [vision.md](vision.md) |
 
 ## Next
 
@@ -18,6 +19,9 @@ Roughly priority-ordered. Nothing below exists yet unless the "today" column say
 
 | Item | What exists today | What's missing |
 |---|---|---|
+| Studio/Agency autopilot modes | Assisted + producer runs work per project; strategy generates scored opportunities | Calendar-level planning from brand goals, batch approval, scheduled autonomous production — see the autopilot ladder in [vision.md](vision.md) |
+| Trend ingestion | Strategy uses Brave web search (key required) or model knowledge | RSS/Reddit/Google Trends/YouTube trending collectors feeding the strategy evidence pool |
+| Background pipeline execution | `run-all` is a synchronous HTTP request (local LLM latency applies) | Task queue + WebSocket progress so producer runs survive restarts and stream stage updates |
 | WebSocket streaming progress | Job status is pull-based: the UI polls `GET /api/comfyui/jobs/{id}`, which refreshes from ComfyUI history on read | Push progress over WebSocket (ComfyUI already exposes one) for generation, voice, and export jobs |
 | ComfyUI model downloads | `model_manager` is a plain CRUD registry of model metadata; `GET /api/comfyui/models` lists what's installed | Download queue into ComfyUI's model folders, progress reporting, checksum verify |
 | Real publishing integrations (YouTube API) | `publishing` stores publish jobs (platform, status, schedule, video asset) as records only | OAuth flow, actual upload via YouTube Data API, status sync back to the job |

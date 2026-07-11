@@ -2,6 +2,10 @@
 
 import type {
   AgentPreset,
+  Brand,
+  Learning,
+  Opportunity,
+  PipelineRun,
   AgentProfile,
   Asset,
   ChatMessage,
@@ -134,6 +138,45 @@ export class ApiClient {
   providers = () => this.get<ProviderStatus[]>("/settings/providers");
   allSettings = () => this.get<Record<string, unknown>>("/settings");
   putSetting = (key: string, value: unknown) => this.put(`/settings/${key}`, { value });
+
+  // Brands
+  listBrands = () => this.get<Brand[]>("/brands");
+  createBrand = (body: Partial<Brand> & { name: string }) => this.post<Brand>("/brands", body);
+  updateBrand = (id: number, body: Partial<Brand>) => this.patch<Brand>(`/brands/${id}`, body);
+  deleteBrand = (id: number) => this.delete(`/brands/${id}`);
+
+  // Strategy
+  listOpportunities = (brandId?: number) =>
+    this.get<Opportunity[]>(
+      `/strategy/opportunities${brandId ? `?brand_id=${brandId}` : ""}`,
+    );
+  generateOpportunities = (body: { brand_id?: number | null; seed_topic?: string; count?: number }) =>
+    this.post<Opportunity[]>("/strategy/generate", body);
+  approveOpportunity = (id: number) =>
+    this.post<{ project_id: number }>(`/strategy/opportunities/${id}/approve`);
+  rejectOpportunity = (id: number) =>
+    this.post<Opportunity>(`/strategy/opportunities/${id}/reject`);
+
+  // Pipeline
+  pipelineStages = () => this.get<string[]>("/pipeline/stages");
+  listRuns = (projectId?: number) =>
+    this.get<PipelineRun[]>(`/pipeline/runs${projectId ? `?project_id=${projectId}` : ""}`);
+  createRun = (projectId: number, mode: PipelineRun["mode"] = "assisted") =>
+    this.post<PipelineRun>("/pipeline/runs", { project_id: projectId, mode });
+  stepRun = (runId: number) =>
+    this.post<{ entry: PipelineRun["log"][number]; run: PipelineRun }>(
+      `/pipeline/runs/${runId}/step`,
+    );
+  runAll = (runId: number) =>
+    this.post<{ entries: PipelineRun["log"]; run: PipelineRun }>(
+      `/pipeline/runs/${runId}/run-all`,
+    );
+
+  // Knowledge
+  listLearnings = (kind?: string) =>
+    this.get<Learning[]>(`/knowledge${kind ? `?kind=${kind}` : ""}`);
+  knowledgeDigest = (brandId?: number) =>
+    this.get<{ digest: string }>(`/knowledge/digest${brandId ? `?brand_id=${brandId}` : ""}`);
 
   health = () => this.get<{ status: string; app: string }>("/health");
 }

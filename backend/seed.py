@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.core.db import SessionLocal, init_db
 from app.modules.agents.models import AgentProfile
 from app.modules.agents.presets import PRESETS
+from app.modules.brands.models import Brand
 from app.modules.mcp.catalog import CATALOG
 from app.modules.mcp.models import McpServer
 from app.modules.projects.models import Project
@@ -51,8 +52,21 @@ def seed() -> None:
             print("already seeded — nothing to do")
             return
 
+        brand = Brand(
+            name="Systems Explained",
+            description="Sample brand seeded for exploration",
+            voice="calm, evidence-first, lightly wry",
+            style="cinematic documentary, desaturated palette, 35mm grain",
+            audience="curious 25-45 viewers who like economics and engineering deep-dives",
+            platforms=["youtube"],
+            goals="Reach 100k subscribers with weekly long-form deep-dives",
+        )
+        db.add(brand)
+        db.flush()
+
         project = Project(
             name="Vertical Farming Deep-Dive",
+            brand_id=brand.id,
             idea="Why did vertical farming startups burn $3B? The physics of light.",
             description="Sample project seeded for exploration",
             status="storyboard",

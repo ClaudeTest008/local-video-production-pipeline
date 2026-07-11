@@ -1,8 +1,8 @@
 # Local Video Production Pipeline
 
-Local-first, AI-powered content production studio for YouTube and other creator platforms. Think Cursor + VS Code + Obsidian + Notion, dedicated to AI-assisted media creation.
+Local-first **AI Creator Operating System**. You are the Creative Director; a crew of specialized AI agents does the work — from *"what should I create next?"* through research, script, storyboard, ComfyUI renders, voice, captions, SEO, and analytics. Multi-brand, provider-agnostic, MCP-native. See [docs/vision.md](docs/vision.md).
 
-**Idea → Research → Script → Storyboard → Prompts → ComfyUI Images → Video → Voice → Music → Captions → Timeline → Thumbnail → SEO → Publishing → Analytics**
+**Strategy (scored opportunities) → approve → Pipeline: Research → Script → Storyboard → Prompts → Images → Voice → SEO → Thumbnail → … → Analytics → Knowledge (the studio learns)**
 
 ## Philosophy
 
@@ -50,6 +50,7 @@ cd apps/desktop && npm install && npm run dev
 
 | Doc | Contents |
 |---|---|
+| [docs/vision.md](docs/vision.md) | The Creator OS vision, autopilot ladder, learning loop |
 | [docs/architecture.md](docs/architecture.md) | Clean architecture, module system, event bus |
 | [docs/folder-structure.md](docs/folder-structure.md) | Repo + project asset layout |
 | [docs/installation.md](docs/installation.md) | Full install guide |

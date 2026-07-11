@@ -16,7 +16,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { PipelineRail } from "@/components/PipelineRail";
 import { useStudio } from "@/lib/store";
 
@@ -64,13 +65,10 @@ function StageCard<T>({
   );
 }
 
-export default function ProjectOverviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-  const projectId = Number(id);
+function ProjectOverview() {
+  // query-param route (not /projects/[id]) so the desktop static export works
+  const id = useSearchParams().get("id");
+  const projectId = id ? Number(id) : NaN;
   const queryClient = useQueryClient();
   const setActiveProject = useStudio((s) => s.setActiveProject);
   const [notice, setNotice] = useState<string | null>(null);
@@ -258,5 +256,13 @@ export default function ProjectOverviewPage({
         </>
       )}
     </div>
+  );
+}
+
+export default function ProjectOverviewPage() {
+  return (
+    <Suspense>
+      <ProjectOverview />
+    </Suspense>
   );
 }

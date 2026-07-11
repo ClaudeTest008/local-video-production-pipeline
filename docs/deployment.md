@@ -90,7 +90,7 @@ $env:LVPP_DESKTOP = "1"; npm run build:web
 LVPP_DESKTOP=1 npm run build:web
 ```
 
-**Known caveat:** `/projects/[id]` is a dynamic route without `generateStaticParams`, which static export does not support — the export build currently fails on that route. Fixing this (query-param route or `generateStaticParams`) is an open roadmap item; until then, desktop builds are blocked on it. `tauri dev` is unaffected (it uses the live dev server, not the export).
+Project detail uses a query-param route (`/project?id=N`) instead of a dynamic segment specifically so static export works — keep new routes export-compatible (no `[param]` segments without `generateStaticParams`).
 
 ## Desktop packaging (Tauri) — current status
 

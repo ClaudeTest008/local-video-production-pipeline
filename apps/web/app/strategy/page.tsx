@@ -77,7 +77,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           </>
         )}
         {opportunity.status === "approved" && projectId && (
-          <Link href={`/projects/${projectId}`} className="text-xs text-info hover:underline">
+          <Link href={`/project?id=${projectId}`} className="text-xs text-info hover:underline">
             Open project #{projectId}
           </Link>
         )}

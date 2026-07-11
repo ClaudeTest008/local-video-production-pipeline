@@ -68,7 +68,7 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.25 }}
     >
-      <Link href={`/projects/${project.id}`} onClick={() => setActiveProject(project.id)}>
+      <Link href={`/project?id=${project.id}`} onClick={() => setActiveProject(project.id)}>
         <Card className="group p-4 transition-colors hover:border-accent/40">
           <div className="mb-1 flex items-center justify-between gap-2">
             <h2 className="truncate font-display text-[15px] font-semibold">{project.name}</h2>

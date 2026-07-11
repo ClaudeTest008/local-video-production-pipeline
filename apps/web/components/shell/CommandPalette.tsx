@@ -64,7 +64,7 @@ export function CommandPalette() {
                 value={`project ${p.name}`}
                 onSelect={() => {
                   setActiveProject(p.id);
-                  go(`/projects/${p.id}`);
+                  go(`/project?id=${p.id}`);
                 }}
                 className="flex cursor-pointer items-center justify-between rounded-md px-2 py-2 text-sm text-fg data-[selected=true]:bg-surface-2"
               >

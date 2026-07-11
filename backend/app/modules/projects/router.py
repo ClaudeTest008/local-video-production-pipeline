@@ -31,8 +31,13 @@ def _get_or_404(r: Repository[Project], project_id: int) -> Project:
 
 
 @router.get("", response_model=list[ProjectRead])
-def list_projects(r: Annotated[Repository, Depends(_repo)], offset: int = 0, limit: int = 100):
-    return r.list(offset=offset, limit=limit)
+def list_projects(
+    r: Annotated[Repository, Depends(_repo)],
+    offset: int = 0,
+    limit: int = 100,
+    brand_id: int | None = None,
+):
+    return r.list(offset=offset, limit=limit, brand_id=brand_id)
 
 
 @router.post("", response_model=ProjectRead, status_code=201)

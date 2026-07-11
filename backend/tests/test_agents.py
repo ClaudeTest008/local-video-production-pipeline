@@ -15,11 +15,20 @@ ai_registry.register("fake", FakeProvider)
 
 def test_presets_and_seed(client):
     presets = client.get("/api/agents/presets").json()
-    assert len(presets) == 14
-    assert {p["role"] for p in presets} >= {"script_writer", "producer", "fact_checker"}
+    assert len(presets) == 19
+    assert {p["role"] for p in presets} >= {
+        "script_writer",
+        "producer",
+        "fact_checker",
+        "creative_director",
+        "strategy_director",
+        "publisher",
+        "business_manager",
+    }
 
-    seeded = client.post("/api/agents/seed-defaults").json()
-    assert len(seeded) == 14
+    client.post("/api/agents/seed-defaults")
+    roles = {a["role"] for a in client.get("/api/agents").json()}
+    assert {p["role"] for p in presets} <= roles  # every preset role now has a profile
     assert client.post("/api/agents/seed-defaults").json() == []  # idempotent
 
 

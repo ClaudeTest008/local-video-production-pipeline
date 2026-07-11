@@ -1,0 +1,121 @@
+from app.core.ai import registry as ai_registry
+from app.core.ai.base import ChatProvider, ChatResponse
+from app.modules.pipeline import parsers
+
+
+class ScriptedProvider(ChatProvider):
+    """Role-aware canned outputs so every parser path is exercised."""
+
+    name = "scripted"
+
+    def chat(self, messages, model, temperature=0.7, max_tokens=4096) -> ChatResponse:
+        ask = messages[-1].content
+        if "visual scenes" in ask:
+            content = (
+                "SCENE: Opening | 5 | drone over ruins\n"
+                "SCENE: The fall | 8.5 | close-up of crumbling column"
+            )
+        elif "SEO pack" in ask:
+            content = "TITLE: Why Rome Fell\nDESCRIPTION: The real story.\nTAGS: rome, history"
+        else:
+            content = f"generated: {ask[:60]}"
+        return ChatResponse(content=content, model=model, provider=self.name)
+
+
+ai_registry.register("scripted", ScriptedProvider)
+
+ROLES = (
+    "researcher",
+    "script_writer",
+    "storyboard_artist",
+    "prompt_engineer",
+    "seo_specialist",
+    "thumbnail_designer",
+)
+
+
+def _scripted_agents(client):
+    """Point each role's profile at the scripted provider (upsert — other tests
+    may have seeded default profiles first)."""
+    existing: dict[str, int] = {}
+    for a in client.get("/api/agents").json():  # get_agent uses the first per role
+        existing.setdefault(a["role"], a["id"])
+    for role in ROLES:
+        if role in existing:
+            client.patch(
+                f"/api/agents/{existing[role]}", json={"provider": "scripted", "model": "m"}
+            )
+        else:
+            client.post(
+                "/api/agents",
+                json={"role": role, "name": role, "provider": "scripted", "model": "m"},
+            )
+
+
+def test_producer_run_full_pipeline(client):
+    _scripted_agents(client)
+    brand = client.post(
+        "/api/brands", json={"name": "TestBrand", "voice": "epic", "goals": "growth"}
+    ).json()
+    project = client.post(
+        "/api/projects",
+        json={"name": "Rome Falls", "brand_id": brand["id"], "idea": "why rome fell"},
+    ).json()
+    pid = project["id"]
+
+    run = client.post("/api/pipeline/runs", json={"project_id": pid, "mode": "producer"})
+    assert run.status_code == 201
+    run_id = run.json()["id"]
+
+    result = client.post(f"/api/pipeline/runs/{run_id}/run-all").json()
+    statuses = {e["stage"]: e["status"] for e in result["entries"]}
+
+    assert statuses["research"] == "done"
+    assert statuses["script"] == "done"
+    assert statuses["storyboard"] == "done"
+    assert statuses["prompts"] == "done"
+    assert statuses["images"] == "skipped"  # no ComfyUI in tests
+    assert statuses["voice"] == "skipped"  # no TTS engine in tests
+    assert statuses["seo"] == "done"
+    assert statuses["thumbnail"] == "done"
+    assert result["run"]["status"] == "done"
+
+    scenes = client.get("/api/storyboard", params={"project_id": pid}).json()
+    assert len(scenes) == 2
+    assert scenes[0]["title"] == "Opening" and scenes[1]["duration_s"] == 8.5
+    assert all(s["prompt"].startswith("generated:") for s in scenes)
+
+    seo = client.get("/api/seo", params={"project_id": pid}).json()
+    assert seo[0]["title"] == "Why Rome Fell" and "rome" in seo[0]["tags"]
+
+    assert client.get(f"/api/projects/{pid}").json()["status"] == "thumbnail"
+
+
+def test_assisted_step(client):
+    _scripted_agents(client)
+    project = client.post("/api/projects", json={"name": "StepWise", "idea": "x"}).json()
+    run = client.post(
+        "/api/pipeline/runs", json={"project_id": project["id"], "mode": "assisted"}
+    ).json()
+    first = client.post(f"/api/pipeline/runs/{run['id']}/step").json()
+    assert first["entry"]["stage"] == "research"
+    second = client.post(f"/api/pipeline/runs/{run['id']}/step").json()
+    assert second["entry"]["stage"] == "script"
+    assert client.get(f"/api/projects/{project['id']}").json()["status"] == "script"
+
+
+def test_parsers_fallbacks():
+    assert parsers.parse_scenes("no markers at all")[0]["title"] == "Full piece"
+    scenes = parsers.parse_scenes("SCENE: A | not-a-number | desc")
+    assert scenes[0]["duration_s"] == 5.0
+
+    seo = parsers.parse_seo("just a headline\nand body")
+    assert seo["title"] == "just a headline"
+
+    opportunities = parsers.parse_opportunities(
+        "TOPIC: Roman coins\nANGLE: hidden economy\nSCORES: growth=8 virality=6.5\n"
+        "WHY: search up\n---\nnoise"
+    )
+    assert opportunities[0]["scores"]["growth"] == 8.0
+    assert opportunities[0]["angle"] == "hidden economy"
+    assert len(opportunities) == 1

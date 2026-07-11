@@ -11,6 +11,7 @@ class ComfyJob(Base, TimestampMixin):
     project_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     prompt_id: Mapped[str] = mapped_column(String(64), index=True)
     workflow: Mapped[dict] = mapped_column(default=dict)
+    workflow_def_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(30), default="queued")  # queued|done|error
     outputs: Mapped[list] = mapped_column(default=list)
     meta: Mapped[dict] = mapped_column(default=dict)

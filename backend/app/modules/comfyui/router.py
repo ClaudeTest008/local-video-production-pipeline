@@ -31,6 +31,7 @@ Jobs = Annotated[Repository, Depends(_jobs)]
 class QueueRequest(BaseModel):
     workflow: dict
     project_id: int | None = None
+    workflow_def_id: int | None = None
 
 
 @router.get("/status")
@@ -61,7 +62,12 @@ def queue(payload: QueueRequest, client: Client, jobs: Jobs) -> dict:
         prompt_id = client.queue_prompt(payload.workflow)
     except httpx.HTTPError as e:
         raise HTTPException(503, f"ComfyUI queue failed: {e}") from e
-    job = jobs.create(project_id=payload.project_id, prompt_id=prompt_id, workflow=payload.workflow)
+    job = jobs.create(
+        project_id=payload.project_id,
+        prompt_id=prompt_id,
+        workflow=payload.workflow,
+        workflow_def_id=payload.workflow_def_id,
+    )
     bus.emit("comfyui.job.queued", {"id": job.id, "prompt_id": prompt_id})
     return {"job_id": job.id, "prompt_id": prompt_id}
 
@@ -100,6 +106,38 @@ def get_job(job_id: int, client: Client, jobs: Jobs) -> dict:
         "outputs": job.outputs,
         "created_at": job.created_at,
     }
+
+
+@router.get("/workflow-stats")
+def workflow_stats(db: Annotated[Session, Depends(get_db)]) -> list[dict]:
+    """Per-workflow render intelligence: success rate + speed, from job history.
+
+    The orchestrator (and the user) can pick workflows on evidence, not guesses.
+    """
+    from sqlalchemy import select
+
+    from app.modules.workflows.models import WorkflowDef
+
+    jobs = db.scalars(select(ComfyJob).where(ComfyJob.workflow_def_id.is_not(None))).all()
+    by_def: dict[int, list[ComfyJob]] = {}
+    for job in jobs:
+        by_def.setdefault(job.workflow_def_id, []).append(job)
+    stats = []
+    for def_id, items in by_def.items():
+        wf = db.get(WorkflowDef, def_id)
+        done = [j for j in items if j.status == "done"]
+        durations = [(j.updated_at - j.created_at).total_seconds() for j in done]
+        stats.append(
+            {
+                "workflow_def_id": def_id,
+                "name": wf.name if wf else f"#{def_id}",
+                "version": wf.version if wf else None,
+                "jobs": len(items),
+                "success_rate": round(len(done) / len(items), 3) if items else 0,
+                "avg_duration_s": round(sum(durations) / len(durations), 1) if durations else None,
+            }
+        )
+    return sorted(stats, key=lambda s: (-s["success_rate"], s["avg_duration_s"] or 1e9))
 
 
 @router.post("/interrupt")

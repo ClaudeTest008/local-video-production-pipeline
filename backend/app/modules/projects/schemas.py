@@ -23,6 +23,7 @@ PIPELINE_STAGES = (
 
 class ProjectCreate(OrmModel):
     name: str
+    brand_id: int | None = None
     description: str = ""
     idea: str = ""
     tags: list[str] = []
@@ -30,6 +31,7 @@ class ProjectCreate(OrmModel):
 
 class ProjectUpdate(OrmModel):
     name: str | None = None
+    brand_id: int | None = None
     description: str | None = None
     status: str | None = None
     idea: str | None = None
@@ -39,6 +41,7 @@ class ProjectUpdate(OrmModel):
 
 class ProjectRead(Timestamped):
     name: str
+    brand_id: int | None
     description: str
     status: str
     idea: str

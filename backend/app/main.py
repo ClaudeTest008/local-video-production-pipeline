@@ -24,6 +24,8 @@ def setup_logging() -> None:
     if not any(isinstance(h, RotatingFileHandler) for h in root.handlers):
         root.addHandler(handler)
     root.setLevel(logging.INFO)
+    # health polling would otherwise flood the log with one INFO line per request
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 @asynccontextmanager

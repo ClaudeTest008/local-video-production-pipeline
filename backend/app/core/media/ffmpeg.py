@@ -12,13 +12,24 @@ def has_ffmpeg() -> bool:
 def build_concat_command(
     clips: list[str], output: str, fps: float = 30, resolution: str = "1920x1080"
 ) -> list[str]:
-    """Concat clips re-encoded to a uniform format. Supports .mp4/.mov output."""
+    """Concat clips re-encoded to a uniform format. Supports .mp4/.mov output.
+
+    Clips are paths (str) or {"path", "duration"} dicts. Still images (png/jpg/
+    webp) are looped for their duration (default 5s) — a storyboard of rendered
+    frames becomes a real video, not a 3-frame flicker.
+    """
     if not clips:
         raise ValueError("no clips to export")
+    IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
     width, height = resolution.split("x")
     cmd: list[str] = ["ffmpeg", "-y"]
     for clip in clips:
-        cmd += ["-i", clip]
+        path = clip["path"] if isinstance(clip, dict) else clip
+        duration = (clip.get("duration") if isinstance(clip, dict) else None) or 5.0
+        if path.lower().endswith(IMAGE_EXTS):
+            cmd += ["-loop", "1", "-t", str(duration), "-i", path]
+        else:
+            cmd += ["-i", path]
     n = len(clips)
     scale = (
         f"scale={width}:{height}:force_original_aspect_ratio=decrease,"

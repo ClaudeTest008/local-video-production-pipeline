@@ -4,6 +4,20 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-07-11
+
+Acceptance-testing patch: every fix below came from running the installed app end-to-end and producing a real video (see `docs/acceptance-report-v1.0.0.md`).
+
+### Fixed
+- **User data survives uninstall** — data dir moved from `%LOCALAPPDATA%\LVPP Studio` (the NSIS install dir, wiped on uninstall) to `%APPDATA%\LVPP Studio`
+- **Timeline export of still images** — image clips are now looped for their scene duration (`-loop 1 -t`); a storyboard of renders becomes a real video instead of a 3-frame flicker
+- **Prompt injection covers real-world graphs** — `PrimitiveStringMultiline`/`PrimitiveString` prompt nodes are now injected (many saved workflows route prompts through primitives, not literal `CLIPTextEncode` text)
+- **ComfyUI validation errors are actionable** — queue failures surface ComfyUI's own node-level diagnosis instead of a bare 400
+- **SEO parser handles markdown-wrapped markers** (`**TITLE:**`)
+- **Setup wizard no longer bounces back to Welcome** after finishing (stale query-cache race)
+- **Logs write to the data directory** in packaged builds (`LVPP_LOG_DIR` was unset → CWD-relative)
+- **Log noise** — httpx request lines (health polling) silenced to WARNING
+
 ## [1.0.0] — 2026-07-11
 
 First public release: an installable Windows desktop app a non-developer can set up and use.
@@ -56,6 +70,7 @@ First public release: an installable Windows desktop app a non-developer can set
 - Docs suite (12), CI (ruff/black/pytest, tsc/eslint/next build), idempotent seed, Alembic initial schema `182a492d4e63`
 - Review fixes: README quick start, ESLint 9 flat config, Tauri static-export trigger, Windows WebView2 CORS
 
+[1.0.1]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v1.0.1
 [1.0.0]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v1.0.0
 [0.2.0]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v0.2.0
 [0.1.0]: https://github.com/ClaudeTest008/local-video-production-pipeline/releases/tag/v0.1.0

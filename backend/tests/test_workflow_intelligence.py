@@ -6,6 +6,16 @@ from app.modules.comfyui.router import get_client
 from app.modules.comfyui.service import inject_prompt
 
 
+def test_inject_prompt_covers_string_primitives():
+    graph = {
+        "113": {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "old prompt"}},
+        "108": {"class_type": "CLIPTextEncode", "inputs": {"text": ["116", 0]}},  # linked
+    }
+    out = inject_prompt(graph, "new prompt")
+    assert out["113"]["inputs"]["value"] == "new prompt"
+    assert out["108"]["inputs"]["text"] == ["116", 0]  # links untouched
+
+
 def test_inject_prompt_replaces_positive_only():
     graph = {
         "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "old positive"}},

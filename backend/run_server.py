@@ -7,7 +7,9 @@ import sys
 
 def _default_data_dir() -> str:
     if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        # Roaming AppData — NOT LocalAppData: the NSIS per-user install dir is
+        # %LOCALAPPDATA%\LVPP Studio, and user data must survive uninstall.
+        base = os.environ.get("APPDATA", os.path.expanduser("~"))
     elif sys.platform == "darwin":
         base = os.path.expanduser("~/Library/Application Support")
     else:
@@ -21,6 +23,7 @@ os.environ.setdefault(
     "LVPP_DATABASE_URL", "sqlite:///" + os.path.join(data_dir, "studio.db").replace("\\", "/")
 )
 os.environ.setdefault("LVPP_PROJECTS_ROOT", os.path.join(data_dir, "projects"))
+os.environ.setdefault("LVPP_LOG_DIR", os.path.join(data_dir, "logs"))
 
 import uvicorn  # noqa: E402
 

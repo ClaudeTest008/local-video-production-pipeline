@@ -64,7 +64,9 @@ export default function SetupWizard() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["setup"] });
+      // write the cache synchronously — invalidate-then-navigate races the
+      // first-run redirect and bounces the user back into the wizard
+      queryClient.setQueryData(["setup"], { complete: true });
       router.replace("/");
     },
   });

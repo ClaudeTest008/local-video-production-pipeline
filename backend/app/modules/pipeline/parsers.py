@@ -30,7 +30,9 @@ def parse_scenes(text: str) -> list[dict]:
 
 
 def parse_seo(text: str) -> dict:
-    """Expect 'TITLE:', 'DESCRIPTION:', 'TAGS:' markers; fallback to first line/body."""
+    """Expect 'TITLE:', 'DESCRIPTION:', 'TAGS:' markers; fallback to first line/body.
+    LLMs love wrapping markers in markdown (**TITLE:**) — strip emphasis first."""
+    text = re.sub(r"\*{1,3}|__", "", text)
 
     def grab(label: str) -> str:
         match = re.search(rf"^{label}:\s*(.+?)(?=^\w+:|\Z)", text, re.MULTILINE | re.DOTALL)

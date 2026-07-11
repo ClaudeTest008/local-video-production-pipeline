@@ -7,6 +7,18 @@ def test_concat_command_shape():
     assert cmd.count("-i") == 2
     joined = " ".join(cmd)
     assert "concat=n=2" in joined and "1280:720" in joined and "fps=24" in joined
+    assert "-loop" not in cmd  # video inputs are not looped
+
+
+def test_concat_command_loops_still_images():
+    cmd = build_concat_command(
+        [{"path": "scene1.png", "duration": 6.5}, {"path": "clip.mp4", "duration": 3}],
+        "out.mp4",
+    )
+    joined = " ".join(cmd)
+    assert "-loop 1 -t 6.5 -i scene1.png" in joined  # image looped for its duration
+    assert "-loop 1" not in joined.split("clip.mp4")[0].split("scene1.png")[1]  # mp4 not looped
+    assert "concat=n=2" in joined
 
 
 def test_timeline_crud_and_dry_run_export(client, project):

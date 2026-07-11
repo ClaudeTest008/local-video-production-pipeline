@@ -64,9 +64,33 @@ class ComfyUIClient:
         return models
 
     def queue_prompt(self, workflow: dict) -> str:
-        """Submit an API-format workflow; returns ComfyUI prompt_id."""
+        """Submit an API-format workflow; returns ComfyUI prompt_id.
+
+        Validation failures surface ComfyUI's own diagnosis (which node, why) —
+        a bare 400 is useless to the user."""
         resp = self._http.post("/prompt", json={"prompt": workflow, "client_id": self.client_id})
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = ""
+            try:
+                data = resp.json()
+                message = data.get("error", {}).get("message", "")
+                nodes = {
+                    node_id: (
+                        entry.get("class_type"),
+                        [e.get("message") for e in entry.get("errors", [])],
+                    )
+                    for node_id, entry in data.get("node_errors", {}).items()
+                }
+                detail = (
+                    f"{message}; node_errors={nodes}" if (message or nodes) else resp.text[:300]
+                )
+            except ValueError:
+                detail = resp.text[:300]
+            raise httpx.HTTPStatusError(
+                f"ComfyUI rejected the workflow ({resp.status_code}): {detail}",
+                request=resp.request,
+                response=resp,
+            )
         return resp.json()["prompt_id"]
 
     def get_queue(self) -> dict:

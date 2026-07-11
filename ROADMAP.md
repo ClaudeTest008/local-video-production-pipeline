@@ -29,7 +29,13 @@ _(updated per milestone — empty when the tree is green)_
 
 ## Planned (v1.1+)
 
-Post-1.0 priorities, roughly ordered: code-signed + auto-updating builds, YouTube publishing, Studio-mode calendar planning, trend collectors, WebSocket progress.
+Priorities set by the v1.0 acceptance run ([acceptance report](docs/acceptance-report-v1.0.0.md)):
+1. Auto-import rendered outputs into project assets + auto-assemble the timeline (last manual step in idea→video)
+2. Video-generation workflows (LTX-2 class) alongside the image stage
+3. One-click piper install for the voice stage; Whisper-aligned captions
+4. Workflow manual-mode UI (list, enable, favorite, tag, benchmark — API already exists)
+5. Per-job execution-time stats from ComfyUI history (exclude queue wait)
+6. Code-signed + auto-updating builds, YouTube publishing, Studio-mode calendar planning, trend collectors, WebSocket progress
 
 | Item | What exists today | What's missing |
 |---|---|---|

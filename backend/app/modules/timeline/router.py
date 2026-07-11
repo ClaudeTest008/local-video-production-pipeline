@@ -44,9 +44,9 @@ class ExportRequest(BaseModel):
     run: bool = True  # False = dry-run, return the ffmpeg command only
 
 
-def _video_clips(timeline: Timeline) -> list[str]:
+def _video_clips(timeline: Timeline) -> list[dict]:
     return [
-        clip["path"]
+        {"path": clip["path"], "duration": clip.get("duration")}
         for track in timeline.tracks
         if track.get("kind") == "video"
         for clip in track.get("clips", [])

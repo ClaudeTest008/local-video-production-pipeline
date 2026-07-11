@@ -15,12 +15,20 @@ def inject_prompt(graph: dict, prompt: str) -> dict:
     """
     graph = copy.deepcopy(graph)
     for node in graph.values():
-        if not isinstance(node, dict) or node.get("class_type") != "CLIPTextEncode":
+        if not isinstance(node, dict):
             continue
         inputs = node.get("inputs", {})
-        current = inputs.get("text", "")
-        if isinstance(current, str) and not any(h in current.lower() for h in NEGATIVE_HINTS):
-            inputs["text"] = prompt
+        class_type = node.get("class_type")
+        if class_type == "CLIPTextEncode":
+            current = inputs.get("text", "")
+            if isinstance(current, str) and not any(h in current.lower() for h in NEGATIVE_HINTS):
+                inputs["text"] = prompt
+        elif class_type in ("PrimitiveStringMultiline", "PrimitiveString", "CLIPTextEncodeSDXL"):
+            # many real graphs route the prompt through a primitive/string node
+            current = inputs.get("value", inputs.get("text", ""))
+            if isinstance(current, str) and not any(h in current.lower() for h in NEGATIVE_HINTS):
+                key = "value" if "value" in inputs else "text"
+                inputs[key] = prompt
     return graph
 
 

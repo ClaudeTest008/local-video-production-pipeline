@@ -52,10 +52,10 @@ Priorities set by the v1.0 acceptance run ([acceptance report](docs/acceptance-r
 | LangGraph agent graphs | Single-shot agent runner; `[agents]` extra installs langgraph | Multi-step graphs with tool use across stages |
 | RAG-assisted research | `/rag` API works with `[rag]` extra | Auto-index research notes, retrieved context in agent runs |
 | Drag-and-drop timeline | CRUD + FFmpeg export | Interactive editor: drag, trim, scrub |
-| Video generation stage | Image stage via ComfyUI | Video workflows (img2vid), stitch into timeline |
+| Video generation stage | **Done (1.2.1)** — real AI video via converted ComfyUI workflows (LTX 2.3 lip-sync verified end-to-end), auto-imported into the timeline | More workflow families verified (Wan/Hunyuan/Mochi), per-scene resolution control |
 | Music / SFX stage | Sound Designer agent (briefs only) | Local music generation integration + SFX cue placement |
-| GPU resource manager | ComfyUI queue counts | VRAM-aware scheduling, priorities, estimated completion |
-| Packaged desktop builds | Tauri dev shell | Sidecar backend binary, bundling, per-OS installers |
+| GPU resource manager | ComfyUI queue counts | VRAM-aware scheduling, priorities, estimated completion; LLM/render contention handling (Ollama can time out while a render saturates the GPU) |
+| Packaged desktop builds | **Done (1.2.0/1.2.1)** — PyInstaller sidecar (bundled Alembic migrations), NSIS installer, portable zip; upgrade-in-place verified | Code signing, auto-update channel, macOS/Linux bundles |
 
 ## Future Ideas
 

@@ -43,5 +43,10 @@ class Settings(BaseSettings):
     default_chat_provider: str = "ollama"
     default_chat_model: str = "llama3.1"
 
+    # Quality review loop: Creative Director critiques key artifacts before they
+    # advance; the producing agent revises on a REVISE verdict. Costs extra LLM
+    # calls per reviewed stage — disable with LVPP_PIPELINE_REVIEW=false.
+    pipeline_review: bool = True
+
 
 settings = Settings()

@@ -89,6 +89,40 @@ def _scenes(db: Session, project_id: int) -> list[Scene]:
     )
 
 
+def _quality_review(
+    db: Session, project: Project, context: str, kind: str, content: str, reviser_role: str
+) -> tuple[str, dict]:
+    """Generate → critique → improve. Creative Director issues a verdict; on
+    REVISE the producing agent gets one revision pass. Never raises past the
+    stage handler — a failed review keeps the original artifact."""
+    from app.core.config import settings
+
+    if not settings.pipeline_review:
+        return content, {}
+    critique = _run_role(
+        db,
+        "creative_director",
+        f"Critique this {kind} against the brand goals in context: hook strength, structure, "
+        f"pacing, clarity. Concrete, ranked improvements. End with exactly "
+        f"'VERDICT: APPROVE' or 'VERDICT: REVISE'.\n\n{content[:6000]}",
+        project,
+        context,
+    )
+    review = {"critique": critique, "revised": False}
+    if "VERDICT: REVISE" in critique.upper():
+        content = _run_role(
+            db,
+            reviser_role,
+            f"Revise the {kind} below applying this critique. Output ONLY the revised {kind}, "
+            f"no commentary.\nCritique:\n{critique[:3000]}\n\n{kind.capitalize()}:\n"
+            f"{content[:6000]}",
+            project,
+            context,
+        )
+        review["revised"] = True
+    return content, review
+
+
 # ── stage handlers ──────────────────────────────────────────────────────────
 
 
@@ -120,10 +154,14 @@ def _stage_script(db: Session, project: Project, context: str) -> str:
         project,
         context,
     )
+    content, review = _quality_review(db, project, context, "script", content, "script_writer")
     Repository(Script, db).create(
-        project_id=project.id, title=f"{project.name} v1", content=content
+        project_id=project.id, title=f"{project.name} v1", content=content, meta=review
     )
-    return f"script saved ({len(content.split())} words)"
+    verdict = "revised after review" if review.get("revised") else "approved on review"
+    if not review:
+        verdict = "review disabled"
+    return f"script saved ({len(content.split())} words, {verdict})"
 
 
 def _stage_storyboard(db: Session, project: Project, context: str) -> str:

@@ -17,6 +17,10 @@ class ScriptedProvider(ChatProvider):
             )
         elif "SEO pack" in ask:
             content = "TITLE: Why Rome Fell\nDESCRIPTION: The real story.\nTAGS: rome, history"
+        elif "Critique this script" in ask:
+            content = "1. Hook is weak — open on the sack of the city.\nVERDICT: REVISE"
+        elif "Revise the script" in ask:
+            content = "revised script: opens on the sack of the city"
         else:
             content = f"generated: {ask[:60]}"
         return ChatResponse(content=content, model=model, provider=self.name)
@@ -31,6 +35,7 @@ ROLES = (
     "prompt_engineer",
     "seo_specialist",
     "thumbnail_designer",
+    "creative_director",
 )
 
 
@@ -87,6 +92,12 @@ def test_producer_run_full_pipeline(client):
 
     seo = client.get("/api/seo", params={"project_id": pid}).json()
     assert seo[0]["title"] == "Why Rome Fell" and "rome" in seo[0]["tags"]
+
+    # quality review loop: Creative Director demanded a revision; script was rewritten
+    scripts = client.get("/api/scripts", params={"project_id": pid}).json()
+    assert scripts[0]["content"].startswith("revised script:")
+    assert scripts[0]["meta"]["revised"] is True
+    assert "VERDICT: REVISE" in scripts[0]["meta"]["critique"]
 
     assert client.get(f"/api/projects/{pid}").json()["status"] == "thumbnail"
 

@@ -13,11 +13,171 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# UI node types that never reach the API graph
-SKIP_TYPES = {"Note", "MarkdownNote"}
+# UI node types that never reach the API graph: annotations + rgthree helper
+# widgets that only drive the editor (bypass/mute groups, buttons, labels).
+SKIP_TYPES = {
+    "Note",
+    "MarkdownNote",
+    "Fast Groups Bypasser (rgthree)",
+    "Fast Groups Muter (rgthree)",
+    "Fast Actions Button (rgthree)",
+    "Label (rgthree)",
+}
 # widget appended automatically after seed-like inputs in the UI
 SEED_INPUTS = {"seed", "noise_seed"}
 PRIMITIVE_TYPES = {"INT", "FLOAT", "STRING", "BOOLEAN"}
+# litegraph virtual boundary nodes inside every subgraph definition
+SUBGRAPH_INPUT_ID = -10
+SUBGRAPH_OUTPUT_ID = -20
+
+
+def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
+    """Inline ComfyUI subgraph instances into their constituent nodes.
+
+    A subgraph instance node carries the subgraph definition's UUID as its
+    ``type``; the interior lives in ``definitions.subgraphs``. ComfyUI's
+    /prompt has no concept of subgraphs, so we splice the interior into the
+    top level and rewire boundary links: interior links from the virtual input
+    node (-10) resolve to whatever fed the instance's matching input slot, and
+    the instance's output slots resolve to the interior producer feeding the
+    virtual output node (-20). Handles nesting via recursion. All inlined ids
+    are renumbered above every existing id so they never collide.
+    """
+    subdefs = {
+        sd["id"]: sd
+        for sd in (ui.get("definitions") or {}).get("subgraphs") or []
+        if isinstance(sd, dict) and "id" in sd
+    }
+    if not subdefs:
+        return ui
+
+    max_node = max_link = 0
+    node_lists = [ui.get("nodes")] + [sd.get("nodes") for sd in subdefs.values()]
+    link_lists = [ui.get("links")] + [sd.get("links") for sd in subdefs.values()]
+    for ns in node_lists:
+        for n in ns or []:
+            try:
+                max_node = max(max_node, int(n.get("id", 0)))
+            except (TypeError, ValueError):
+                pass
+    for ls in link_lists:
+        for link in ls or []:
+            if isinstance(link, list) and link:
+                try:
+                    max_link = max(max_link, int(link[0]))
+                except (TypeError, ValueError):
+                    pass
+    counter = {"node": max_node + 1, "link": max_link + 1}
+
+    def fresh(key: str) -> int:
+        counter[key] += 1
+        return counter[key] - 1
+
+    out_nodes: list[dict] = []
+    out_links: list[list] = []
+
+    def flatten_level(nodes: list, links: list, input_binding: dict) -> dict:
+        """Emit this level's real nodes; return {output_slot: producer} so a
+        parent can resolve links to this subgraph's outputs."""
+        link_by_id = {
+            link[0]: link
+            for link in links or []
+            if isinstance(link, list) and len(link) >= 5
+        }
+        real_final: dict = {}
+        real_node: dict = {}
+        instances: dict = {}
+        for n in nodes or []:
+            if n.get("type") in subdefs:
+                instances[n["id"]] = n
+            else:
+                real_final[n["id"]] = fresh("node")
+                real_node[n["id"]] = n
+
+        inlined: dict = {}
+        in_progress: set = set()
+
+        def resolve(origin_id, origin_slot):
+            """(final_node_id, slot) that produces this pin, or None."""
+            if origin_id == SUBGRAPH_INPUT_ID:
+                return input_binding.get(origin_slot)
+            if origin_id in instances:
+                return inline(origin_id).get(origin_slot)
+            if origin_id in real_final:
+                return (real_final[origin_id], origin_slot)
+            return None
+
+        def resolve_link(link_id):
+            link = link_by_id.get(link_id)
+            return resolve(link[1], link[2]) if link else None
+
+        def inline(inst_id: int) -> dict:
+            if inst_id in inlined:
+                return inlined[inst_id]
+            if inst_id in in_progress:  # cycle guard (graphs are DAGs)
+                return {}
+            in_progress.add(inst_id)
+            inst = instances[inst_id]
+            if inst.get("mode") == 2:
+                issues.append(f"subgraph instance {inst_id} is muted; dropped")
+                inlined[inst_id] = {}
+                in_progress.discard(inst_id)
+                return {}
+            if inst.get("mode") == 4:
+                issues.append(f"subgraph instance {inst_id} is bypassed; inlined as-is")
+            if inst.get("widgets_values"):
+                # ponytail: promoted widgets stay at subgraph defaults; overrides on
+                # the instance aren't reapplied. Surface it, upgrade if it bites.
+                issues.append(
+                    f"subgraph instance {inst_id}: promoted widget values not applied "
+                    "(using subgraph defaults)"
+                )
+            binding = {
+                idx: (resolve_link(inp["link"]) if inp.get("link") is not None else None)
+                for idx, inp in enumerate(inst.get("inputs") or [])
+            }
+            sd = subdefs[inst["type"]]
+            capture = flatten_level(sd.get("nodes"), sd.get("links"), binding)
+            inlined[inst_id] = capture
+            in_progress.discard(inst_id)
+            return capture
+
+        for old_id, n in real_node.items():
+            fid = real_final[old_id]
+            new_inputs = []
+            for slot, inp in enumerate(n.get("inputs") or []):
+                producer = resolve_link(inp["link"]) if inp.get("link") is not None else None
+                link_id = None
+                if producer is not None:
+                    link_id = fresh("link")
+                    out_links.append(
+                        [link_id, producer[0], producer[1], fid, slot, inp.get("type")]
+                    )
+                new_inputs.append(
+                    {"name": inp.get("name"), "type": inp.get("type"), "link": link_id}
+                )
+            node_copy = {
+                "id": fid,
+                "type": n.get("type"),
+                "inputs": new_inputs,
+                "widgets_values": n.get("widgets_values"),
+            }
+            if "mode" in n:
+                node_copy["mode"] = n["mode"]
+            out_nodes.append(node_copy)
+
+        return {
+            link[4]: resolve(link[1], link[2])
+            for link in links or []
+            if isinstance(link, list) and len(link) >= 5 and link[3] == SUBGRAPH_OUTPUT_ID
+        }
+
+    flatten_level(ui.get("nodes"), ui.get("links"), {})
+    flat = dict(ui)
+    flat["nodes"] = out_nodes
+    flat["links"] = out_links
+    flat.pop("definitions", None)
+    return flat
 
 
 class ConversionResult(dict):
@@ -62,6 +222,7 @@ def _widget_input_names(class_type: str, object_info: dict) -> list[str]:
 
 def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
     issues: list[str] = []
+    ui = _flatten_subgraphs(ui, issues)
     nodes = ui.get("nodes", [])
     node_by_id = {n["id"]: n for n in nodes}
     links = _link_map(ui)

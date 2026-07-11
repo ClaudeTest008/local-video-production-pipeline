@@ -110,3 +110,25 @@ def test_analyze_dependencies_basename_match_avoids_false_positive():
     assert deps["missing_models"] == []
     assert deps["missing_nodes"] == []
     assert deps["renderable"] is True
+
+
+def test_analyze_dependencies_reads_modern_combo_options():
+    # modern ["COMBO", {"options": [...]}] loaders must count as installed models
+    oi = {
+        "LatentUpscaleModelLoader": {
+            "input": {
+                "required": {
+                    "model_name": ["COMBO", {"options": ["ltx-2.3-spatial-upscaler-x2-1.1.safetensors"]}]
+                }
+            }
+        }
+    }
+    graph = {
+        "1": {
+            "class_type": "LatentUpscaleModelLoader",
+            "inputs": {"model_name": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors"},
+        }
+    }
+    deps = analyze_dependencies(graph, oi)
+    assert deps["missing_models"] == []
+    assert deps["renderable"] is True

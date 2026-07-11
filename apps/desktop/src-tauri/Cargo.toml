@@ -1,6 +1,6 @@
 [package]
 name = "lvpp-desktop"
-version = "1.2.0"
+version = "1.2.1"
 description = "LVPP Studio desktop shell"
 edition = "2021"
 

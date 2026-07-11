@@ -78,14 +78,25 @@ def _installed_model_names(object_info: dict) -> set[str]:
         spec = info.get("input", {})
         for section in ("required", "optional"):
             for definition in spec.get(section, {}).values():
-                if isinstance(definition, (list, tuple)) and definition and isinstance(
-                    definition[0], list
+                if not (isinstance(definition, (list, tuple)) and definition):
+                    continue
+                # legacy combo: options list in definition[0]; modern combo:
+                # ["COMBO", {"options": [...]}] — both list installed files
+                if isinstance(definition[0], list):
+                    options = definition[0]
+                elif (
+                    definition[0] == "COMBO"
+                    and len(definition) > 1
+                    and isinstance(definition[1], dict)
                 ):
-                    names |= {
-                        opt
-                        for opt in definition[0]
-                        if isinstance(opt, str) and opt.lower().endswith(MODEL_EXTS)
-                    }
+                    options = definition[1].get("options") or []
+                else:
+                    continue
+                names |= {
+                    opt
+                    for opt in options
+                    if isinstance(opt, str) and opt.lower().endswith(MODEL_EXTS)
+                }
     return names
 
 

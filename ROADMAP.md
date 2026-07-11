@@ -17,6 +17,10 @@ The vision lives in [docs/vision.md](docs/vision.md). This file tracks execution
 - **Strategy Center** — scored opportunities (Brave evidence or model knowledge), approve → project
 - **Knowledge Engine v1** — event-driven learnings (render outcomes, failures, analytics) fed into agent context
 - **Docs, seed, examples, CI** — 12 docs, idempotent seed, GitHub Actions (lint + tests + typecheck + build)
+- **Quality review loop** — Creative Director critique → revise pass on scripts (`LVPP_PIPELINE_REVIEW`)
+- **Background pipeline execution** — threaded `run-all?background=true`, polling, stage retry, interrupted-run recovery
+- **Brand engine preferences** — provider/model/ComfyUI-workflow per brand, honored across all agent runs and the images stage
+- **System health + studio dashboard** — `/api/system/health` aggregate; home page is the studio overview (project list at `/projects`)
 
 ## In Progress
 
@@ -26,11 +30,8 @@ _(updated per milestone — empty when the tree is green)_
 
 | Item | What exists today | What's missing |
 |---|---|---|
-| Quality review loops | Single-shot stage generation | Generate → critique → improve pass (Creative Director reviews scripts/SEO before advancing) |
-| Background pipeline execution | `run-all` is a synchronous HTTP request | Threaded background runs with polling, stage retry, graceful recovery |
-| System health / studio telemetry | Status bar polls backend + ComfyUI | One `/system/health` aggregate: engines, providers, queue depth, VRAM |
-| Studio dashboard home | App opens on the project list | Overview: active runs, render queue, opportunities, health, latest learnings |
-| Studio/Agency autopilot | Assisted + producer per project | Calendar planning from brand goals, batch approval, scheduled multi-project production |
+| Review loops beyond scripts | Script stage has critique→revise | Apply the same pattern to SEO packs, thumbnails, storyboards |
+| Studio/Agency autopilot | Assisted + producer per project; background execution | Calendar planning from brand goals, batch approval, scheduled multi-project production |
 | Trend ingestion | Brave web search (key) or model knowledge | RSS/Reddit/Google Trends/YouTube trending collectors feeding strategy evidence |
 | WebSocket streaming progress | Pull-based job polling | Push progress for renders, voice, exports (ComfyUI exposes a WS already) |
 | ComfyUI model downloads | Model metadata registry + installed listing | Download queue into ComfyUI folders, progress, checksum verify |

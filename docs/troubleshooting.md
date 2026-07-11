@@ -89,6 +89,13 @@ The default DB is `backend/data/studio.db`. SQLite allows one writer; a second b
 - Close the other process. Find it on Windows: `Get-Process | Where-Object {$_.Path -like "*python*"}`; Unix: `fuser backend/data/studio.db`.
 - Multi-process or heavier use: switch to PostgreSQL — `pip install -e ".[postgres]"` and set `LVPP_DATABASE_URL=postgresql+psycopg2://user:pass@localhost/lvpp`.
 
+## 500 errors after pulling new code ("no such column")
+
+Dev mode creates tables with `create_all`, which never **alters** existing tables — after a schema change your old `backend/data/studio.db` misses new columns and affected endpoints return 500.
+
+- Migrate in place (stop the backend first — SQLite locks): `alembic stamp <previous-revision>` (only if the DB predates Alembic tracking), then `alembic upgrade head`.
+- Or, if the data is disposable: delete `backend/data/studio.db` and re-run `python seed.py`.
+
 ## Windows: `python` not found or opens the Microsoft Store
 
 Windows ships stub "App execution aliases" for `python`/`python3` that redirect to the Store.

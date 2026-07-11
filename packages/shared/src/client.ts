@@ -6,6 +6,7 @@ import type {
   Learning,
   Opportunity,
   PipelineRun,
+  SystemHealth,
   AgentProfile,
   Asset,
   ChatMessage,
@@ -179,6 +180,7 @@ export class ApiClient {
     this.get<{ digest: string }>(`/knowledge/digest${brandId ? `?brand_id=${brandId}` : ""}`);
 
   health = () => this.get<{ status: string; app: string }>("/health");
+  systemHealth = () => this.get<SystemHealth>("/system/health");
 }
 
 interface Timestamped {

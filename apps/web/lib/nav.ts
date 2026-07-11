@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Compass,
   FileText,
+  FolderKanban,
   FolderOpen,
   Image,
   LayoutDashboard,
@@ -18,7 +19,8 @@ import {
 } from "lucide-react";
 
 export const NAV = [
-  { href: "/", label: "Projects", icon: LayoutDashboard },
+  { href: "/", label: "Studio", icon: LayoutDashboard },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/brands", label: "Brands", icon: Compass },
   { href: "/strategy", label: "Strategy", icon: Lightbulb },
   { href: "/pipeline", label: "Pipeline", icon: Play },

@@ -70,6 +70,25 @@ export interface Learning extends Timestamped {
   score: number;
 }
 
+export interface SystemHealth {
+  backend: string;
+  database: string;
+  comfyui: {
+    available: boolean;
+    url: string;
+    queue?: { running: number; pending: number };
+    devices?: { name: string; vram_total_mb: number; vram_free_mb: number }[];
+  };
+  providers: { name: string; available: boolean }[];
+  engines: {
+    ffmpeg: boolean;
+    whisper: boolean;
+    tts: { name: string; available: boolean }[];
+  };
+  pipeline: { running: number; errored: number };
+  render_queue: { queued_jobs: number };
+}
+
 export interface Project extends Timestamped {
   name: string;
   brand_id: number | null;

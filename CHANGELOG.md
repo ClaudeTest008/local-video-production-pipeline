@@ -4,6 +4,17 @@ All notable changes to this project. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+- **Quality review loop** — Creative Director critiques generated scripts (APPROVE/REVISE verdict); the Script Writer revises on REVISE; critique persists on the script. Opt-out: `LVPP_PIPELINE_REVIEW=false`
+- **Background pipeline execution** — `run-all?background=true` detaches into a worker thread with polling; failed stages retry on the next step; runs interrupted by a restart are marked with a resume hint
+- **Brand engine preferences** — `preferred_provider` / `preferred_model` / `preferred_workflow_id`; precedence: agent profile → brand → app default; images stage renders with the brand's workflow
+- **System health** — `GET /api/system/health`: database, ComfyUI (+per-device VRAM), provider availability, FFmpeg/Whisper/TTS, pipeline and render-queue depth
+- **Studio dashboard** — the app now opens on a studio overview (system health, active production, top opportunities, brands, latest learnings); the project list moved to `/projects`
+- Root `ROADMAP.md` (single source of truth) and this changelog
+
+### Fixed
+- Migration `9b6ae3ffca66` adds NOT NULL brand columns with a server default (SQLite cannot alter populated tables otherwise); troubleshooting doc covers upgrading pre-existing dev databases
+
 ## [0.2.0] — 2026-07-11
 
 ### Added

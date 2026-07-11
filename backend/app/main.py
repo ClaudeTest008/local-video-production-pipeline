@@ -13,6 +13,9 @@ from app.core.registry import collect_routers
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    from app.core.events import bus
+
+    bus.emit("app.started", {})  # modules react (e.g. pipeline recovers interrupted runs)
     yield
 
 

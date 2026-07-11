@@ -66,18 +66,25 @@ def get_run(run_id: int, db: DB, runs: Runs):
 def step(run_id: int, db: DB, runs: Runs):
     """Execute the next stage (assisted mode: review between calls)."""
     run, project = _get_run(db, runs, run_id)
+    if run.status == "running":
+        raise HTTPException(409, "run is already executing in the background")
     entry = service.execute_stage(db, run, project)
     return {"entry": entry, "run": runs.get(run_id)}
 
 
 @router.post("/runs/{run_id}/run-all")
-def run_all(run_id: int, db: DB, runs: Runs):
+def run_all(run_id: int, db: DB, runs: Runs, background: bool = False):
     """Producer mode: run every remaining stage back-to-back.
 
-    Synchronous by design for v1 — local LLM latency applies. Streaming
-    progress over WebSocket is on the roadmap.
+    background=true detaches into a worker thread — poll GET /pipeline/runs/{id}.
+    A failed stage is retried by the next /step or /run-all call.
     """
     run, project = _get_run(db, runs, run_id)
+    if run.status == "running":
+        raise HTTPException(409, "run is already executing in the background")
+    if background:
+        service.start_background(db, run)
+        return {"started": True, "run_id": run_id}
     entries = []
     for _ in range(MAX_STAGES_PER_REQUEST):
         run = runs.get(run_id)

@@ -115,6 +115,69 @@ def test_assisted_step(client):
     assert client.get(f"/api/projects/{project['id']}").json()["status"] == "script"
 
 
+def test_background_run_and_recovery(client):
+    import time
+
+    _scripted_agents(client)
+    project = client.post("/api/projects", json={"name": "BG Run", "idea": "x"}).json()
+    run = client.post(
+        "/api/pipeline/runs", json={"project_id": project["id"], "mode": "producer"}
+    ).json()
+
+    started = client.post(
+        f"/api/pipeline/runs/{run['id']}/run-all", params={"background": "true"}
+    ).json()
+    assert started == {"started": True, "run_id": run["id"]}
+
+    status = "running"
+    for _ in range(100):
+        status = client.get(f"/api/pipeline/runs/{run['id']}").json()["status"]
+        if status in ("done", "error"):
+            break
+        time.sleep(0.1)
+    assert status == "done"
+
+    finished = client.get(f"/api/pipeline/runs/{run['id']}").json()
+    assert {e["stage"] for e in finished["log"]} == set(client.get("/api/pipeline/stages").json())
+
+
+def test_step_retries_failed_stage(client):
+    calls = {"n": 0}
+
+    class FlakyProvider(ChatProvider):
+        name = "flaky"
+
+        def chat(self, messages, model, temperature=0.7, max_tokens=4096) -> ChatResponse:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("model crashed")
+            return ChatResponse(content="recovered research", model=model, provider=self.name)
+
+    ai_registry.register("flaky", FlakyProvider)
+    _scripted_agents(client)
+    researcher = next(a for a in client.get("/api/agents").json() if a["role"] == "researcher")
+    client.patch(f"/api/agents/{researcher['id']}", json={"provider": "flaky"})
+    try:
+        project = client.post("/api/projects", json={"name": "Flaky", "idea": "x"}).json()
+        run = client.post(
+            "/api/pipeline/runs", json={"project_id": project["id"], "mode": "assisted"}
+        ).json()
+
+        first = client.post(f"/api/pipeline/runs/{run['id']}/step").json()
+        assert first["entry"] == {
+            "stage": "research",
+            "status": "error",
+            "detail": "model crashed",
+        }
+        assert first["run"]["status"] == "error"
+
+        retry = client.post(f"/api/pipeline/runs/{run['id']}/step").json()
+        assert retry["entry"]["stage"] == "research"
+        assert retry["entry"]["status"] == "done"
+    finally:
+        client.patch(f"/api/agents/{researcher['id']}", json={"provider": "scripted"})
+
+
 def test_parsers_fallbacks():
     assert parsers.parse_scenes("no markers at all")[0]["title"] == "Full piece"
     scenes = parsers.parse_scenes("SCENE: A | not-a-number | desc")

@@ -10,10 +10,12 @@ fails because optional local tooling is absent.
 """
 
 import logging
+import threading
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.db import SessionLocal
 from app.core.events import bus
 from app.core.repository import Repository
 from app.modules.agents import service as agent_service
@@ -306,6 +308,58 @@ HANDLERS = {
 }
 
 
+def run_remaining(db: Session, run_id: int) -> None:
+    """Execute every remaining stage; stop on error or completion."""
+    for _ in range(len(STAGE_NAMES)):
+        run = db.get(PipelineRun, run_id)
+        project = db.get(Project, run.project_id) if run else None
+        if run is None or project is None or next_stage(run) is None:
+            return
+        if execute_stage(db, run, project)["status"] == "error":
+            return
+
+
+def start_background(db: Session, run: PipelineRun) -> None:
+    """Producer run in a background thread; poll GET /pipeline/runs/{id}."""
+    Repository(PipelineRun, db).update(
+        run.id, status="running", meta={**run.meta, "background": True}
+    )
+
+    def worker(run_id: int = run.id) -> None:
+        with SessionLocal() as thread_db:
+            try:
+                run_remaining(thread_db, run_id)
+            except Exception:
+                logger.exception("background run %s crashed", run_id)
+                Repository(PipelineRun, thread_db).update(run_id, status="error")
+
+    threading.Thread(target=worker, daemon=True, name=f"pipeline-run-{run.id}").start()
+
+
+def _recover_interrupted(topic: str, payload: dict) -> None:
+    """Runs left 'running' by a previous process died with it — surface that."""
+    with SessionLocal() as db:
+        stale = db.scalars(select(PipelineRun).where(PipelineRun.status == "running")).all()
+        for run in stale:
+            Repository(PipelineRun, db).update(
+                run.id,
+                status="error",
+                log=[
+                    *run.log,
+                    {
+                        "stage": run.current_stage or "?",
+                        "status": "error",
+                        "detail": "interrupted by restart — use /step or /run-all to resume",
+                    },
+                ],
+            )
+        if stale:
+            logger.warning("marked %d interrupted pipeline runs as error", len(stale))
+
+
+bus.subscribe("app.started", _recover_interrupted)
+
+
 def next_stage(run: PipelineRun) -> str | None:
     done = {entry["stage"] for entry in run.log if entry.get("status") in ("done", "skipped")}
     for name in STAGE_NAMES:
@@ -339,9 +393,11 @@ def execute_stage(db: Session, run: PipelineRun, project: Project) -> dict:
     if status == "done":
         Repository(Project, db).update(project.id, status=stage_status)
     finished = all(s in {e["stage"] for e in new_log} for s in STAGE_NAMES)
+    # background runs stay "running" between stages so pollers see one state
+    between = "running" if run.meta.get("background") else "idle"
     runs.update(
         run.id,
-        status="done" if finished else "idle",
+        status="done" if finished else between,
         current_stage="" if finished else stage,
         log=new_log,
     )

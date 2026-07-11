@@ -193,16 +193,47 @@ def _link_map(ui: dict) -> dict[int, tuple[int, int]]:
     }
 
 
-def _resolve_reroutes(node_by_id: dict, links: dict, src: tuple[int, int]) -> tuple[int, int]:
-    """Follow Reroute chains to the real producer."""
+def _set_node_map(nodes: list) -> dict[str, dict]:
+    """SetNode (KJNodes) variable name -> the node itself, for GetNode resolution."""
+    return {
+        (n.get("widgets_values") or [None])[0]: n
+        for n in nodes
+        if n.get("type") == "SetNode" and n.get("widgets_values")
+    }
+
+
+def _resolve_reroutes(
+    node_by_id: dict, links: dict, src: tuple[int, int], set_by_name: dict | None = None
+) -> tuple[int, int]:
+    """Follow Reroute chains and KJNodes Set/Get variable passthroughs to the
+    real producer. Get<name> resolves to whatever feeds the matching Set<name>;
+    both are frontend-only bookkeeping with no /prompt execution counterpart."""
+    set_by_name = set_by_name or {}
     for _ in range(50):
         node = node_by_id.get(src[0])
-        if node is None or node.get("type") not in ("Reroute", "RerouteNode"):
+        if node is None:
             return src
-        in_links = [i.get("link") for i in node.get("inputs", []) if i.get("link") is not None]
-        if not in_links:
+        node_type = node.get("type")
+        if node_type in ("Reroute", "RerouteNode", "SetNode"):
+            in_links = [
+                i.get("link") for i in node.get("inputs", []) if i.get("link") is not None
+            ]
+            if not in_links:
+                return src
+            src = links.get(in_links[0], src)
+        elif node_type == "GetNode":
+            name = (node.get("widgets_values") or [None])[0]
+            setter = set_by_name.get(name)
+            if setter is None:
+                return src
+            in_links = [
+                i.get("link") for i in setter.get("inputs", []) if i.get("link") is not None
+            ]
+            if not in_links:
+                return src
+            src = links.get(in_links[0], src)
+        else:
             return src
-        src = links.get(in_links[0], src)
     return src
 
 
@@ -226,11 +257,14 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
     nodes = ui.get("nodes", [])
     node_by_id = {n["id"]: n for n in nodes}
     links = _link_map(ui)
+    set_by_name = _set_node_map(nodes)
     graph: dict[str, dict] = {}
 
     for node in nodes:
         node_type = node.get("type", "")
         if node_type in SKIP_TYPES or node_type.startswith("Reroute"):
+            continue
+        if node_type in ("SetNode", "GetNode"):
             continue
         if node.get("mode") == 2:  # muted — drop; consumers will report missing input
             issues.append(f"node {node['id']} ({node_type}) is muted; dropped")
@@ -242,8 +276,11 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
         connected = set()
         for inp in node.get("inputs", []) or []:
             if inp.get("link") is not None:
-                src = _resolve_reroutes(node_by_id, links, links.get(inp["link"], (None, 0)))
-                if src[0] is None:
+                src = _resolve_reroutes(
+                    node_by_id, links, links.get(inp["link"], (None, 0)), set_by_name
+                )
+                src_type = node_by_id.get(src[0], {}).get("type") if src[0] is not None else None
+                if src[0] is None or src_type in ("Reroute", "RerouteNode", "SetNode", "GetNode"):
                     issues.append(f"node {node['id']}: dangling link on '{inp.get('name')}'")
                     continue
                 inputs[inp["name"]] = [str(src[0]), src[1]]

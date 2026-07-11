@@ -76,6 +76,79 @@ def test_flatten_subgraph_and_strip_ui_nodes():
     assert vaedecode["inputs"]["samples"] == [ksampler_id, 0]  # output boundary
 
 
+def test_setnode_getnode_resolve_to_real_producer():
+    # CheckpointLoader --Set("model")--> ... --Get("model")--> KSampler
+    ui = {
+        "nodes": [
+            {
+                "id": 1,
+                "type": "CheckpointLoaderSimple",
+                "inputs": [],
+                "outputs": [{"name": "MODEL", "type": "MODEL", "links": [10]}],
+                "widgets_values": ["ckpt.safetensors"],
+            },
+            {
+                "id": 2,
+                "type": "SetNode",
+                "title": "Set_model",
+                "inputs": [{"name": "MODEL", "type": "MODEL", "link": 10}],
+                "outputs": [{"name": "MODEL", "type": "MODEL", "links": []}],
+                "widgets_values": ["model"],
+            },
+            {
+                "id": 3,
+                "type": "GetNode",
+                "title": "Get_model",
+                "inputs": [],
+                "outputs": [{"name": "MODEL", "type": "MODEL", "links": [20]}],
+                "widgets_values": ["model"],
+            },
+            {
+                "id": 4,
+                "type": "KSampler",
+                "inputs": [{"name": "model", "type": "MODEL", "link": 20}],
+                "outputs": [],
+                "widgets_values": [123, 20, 8.0],
+            },
+        ],
+        "links": [
+            [10, 1, 0, 2, 0, "MODEL"],
+            [20, 3, 0, 4, 0, "MODEL"],
+        ],
+    }
+    graph = ui_to_api(ui, object_info={})["graph"]
+    class_types = {n["class_type"] for n in graph.values()}
+    assert "SetNode" not in class_types
+    assert "GetNode" not in class_types
+    assert graph["4"]["inputs"]["model"] == ["1", 0]  # Get resolved straight to the Checkpoint
+
+
+def test_getnode_without_matching_setnode_reports_dangling():
+    ui = {
+        "nodes": [
+            {
+                "id": 1,
+                "type": "GetNode",
+                "title": "Get_missing",
+                "inputs": [],
+                "outputs": [{"name": "MODEL", "type": "MODEL", "links": [10]}],
+                "widgets_values": ["missing"],
+            },
+            {
+                "id": 2,
+                "type": "KSampler",
+                "inputs": [{"name": "model", "type": "MODEL", "link": 10}],
+                "outputs": [],
+                "widgets_values": [123, 20, 8.0],
+            },
+        ],
+        "links": [[10, 1, 0, 2, 0, "MODEL"]],
+    }
+    result = ui_to_api(ui, object_info={})
+    assert "model" not in result["graph"]["2"]["inputs"]
+    assert any("dangling link" in issue for issue in result["issues"])
+
+
 def test_plain_graph_unchanged():
     ui = {
         "nodes": [

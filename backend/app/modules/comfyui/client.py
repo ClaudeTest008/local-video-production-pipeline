@@ -91,7 +91,26 @@ class ComfyUIClient:
                 request=resp.request,
                 response=resp,
             )
-        return resp.json()["prompt_id"]
+        data = resp.json()
+        # ComfyUI accepts partially-valid prompts with 200: output nodes whose
+        # dependency chain fails validation are silently dropped and only the
+        # survivors execute — a render can "succeed" while producing nothing.
+        # Treat any node_errors as rejection so the failure surfaces immediately.
+        node_errors = data.get("node_errors") or {}
+        if node_errors:
+            nodes = {
+                node_id: (
+                    entry.get("class_type"),
+                    [e.get("message") for e in entry.get("errors", [])],
+                )
+                for node_id, entry in node_errors.items()
+            }
+            raise httpx.HTTPStatusError(
+                f"ComfyUI dropped invalid nodes from the prompt; node_errors={nodes}",
+                request=resp.request,
+                response=resp,
+            )
+        return data["prompt_id"]
 
     def list_server_workflows(self) -> list[str]:
         """Workflows saved in ComfyUI's user library (the web UI's own list)."""

@@ -185,6 +185,9 @@ def _flatten_subgraphs(ui: dict, issues: list[str]) -> dict:
                 "id": fid,
                 "type": n.get("type"),
                 "inputs": new_inputs,
+                # outputs carry the slot types _bypass_passthrough needs to rewire
+                # a bypassed (mode=4) inlined node; dropping them broke passthrough.
+                "outputs": n.get("outputs"),
                 "widgets_values": n.get("widgets_values"),
             }
             if "mode" in n:
@@ -293,10 +296,18 @@ def _resolve_reroutes(
 
 
 DYNAMIC_COMBO_TYPE = "COMFY_DYNAMICCOMBO_V3"
+# V3 combo: definition is ["COMBO", {"options": [...]}] — a single-value selector
+# widget (unlike the dynamic combo it has no option-scoped sub-inputs). Older
+# combos serialize their options as a bare list in definition[0] instead.
+COMBO_TYPE = "COMBO"
 
 
 def _is_widget_kind(kind) -> bool:
-    return isinstance(kind, list) or kind in PRIMITIVE_TYPES or kind == DYNAMIC_COMBO_TYPE
+    return (
+        isinstance(kind, list)
+        or kind in PRIMITIVE_TYPES
+        or kind in (DYNAMIC_COMBO_TYPE, COMBO_TYPE)
+    )
 
 
 def _widget_defs(spec: dict) -> list[tuple[str, list | tuple]]:
@@ -328,36 +339,44 @@ def _assign_widget_values(
     vi: int,
     prefix: str = "",
 ) -> int:
-    """Walk ``defs`` in order, consuming one positional value per widget not
-    already satisfied by a link. A COMFY_DYNAMICCOMBO_V3 widget consumes its
-    own selector value, then — since the selected option changes which
-    sub-inputs exist — splices that option's required+optional widget inputs
-    into the walk at the current position, in declared order. Sub-inputs are
-    keyed "<combo_name>.<sub_name>", matching the qualified name ComfyUI's
-    execution expects for combo-scoped inputs."""
+    """Walk ``defs`` in order, consuming one positional value per widget. A
+    COMFY_DYNAMICCOMBO_V3 widget consumes its own selector value, then — since
+    the selected option changes which sub-inputs exist — splices that option's
+    required+optional widget inputs into the walk at the current position, in
+    declared order. Sub-inputs are keyed "<combo_name>.<sub_name>", matching the
+    qualified name ComfyUI's execution expects for combo-scoped inputs.
+
+    A widget already satisfied by a link still occupies its positional slot in
+    ``widgets_values`` (modern ComfyUI keeps the widget value even when the input
+    is linked), so its slot must be *consumed* to stay aligned — but not assigned,
+    since the link supplies the real value. Skipping consumption instead desyncs
+    every widget after the first linked one (e.g. epsilon reading a neighbour's
+    empty string)."""
     for name, definition in defs:
         qualified = prefix + name
-        if qualified in connected:
-            continue
         if vi >= len(values):
             break
+        is_connected = qualified in connected
         if definition[0] == DYNAMIC_COMBO_TYPE:
             selected = values[vi]
             vi += 1
-            inputs[qualified] = selected
+            if not is_connected:
+                inputs[qualified] = selected
             options = (definition[1] or {}).get("options") or []
             option = next((o for o in options if o.get("key") == selected), None)
             if option is None:
-                issues.append(
-                    f"node {node_id}: unknown option '{selected}' for dynamic combo '{name}'"
-                )
+                if not is_connected:
+                    issues.append(
+                        f"node {node_id}: unknown option '{selected}' for dynamic combo '{name}'"
+                    )
                 continue
             sub_defs = _widget_defs(option.get("inputs") or {})
             vi = _assign_widget_values(
                 node_id, sub_defs, values, connected, inputs, issues, vi, prefix=qualified + "."
             )
             continue
-        inputs[qualified] = values[vi]
+        if not is_connected:
+            inputs[qualified] = values[vi]
         vi += 1
         if (
             name in SEED_INPUTS
@@ -366,6 +385,84 @@ def _assign_widget_values(
         ):
             vi += 1  # control_after_generate ghost widget
     return vi
+
+
+def _assign_widget_values_dict(
+    node_id,
+    defs: list[tuple[str, list | tuple]],
+    values: dict,
+    connected: set,
+    inputs: dict,
+    issues: list[str],
+    prefix: str = "",
+) -> None:
+    """Name-keyed ``widgets_values`` (newer ComfyUI / VideoHelperSuite
+    serialization). Assign each widget by its own name rather than by position,
+    so format-dependent and non-serialized widgets that sit between the declared
+    inputs — e.g. VHS_VideoCombine's pix_fmt/crf/save_metadata/videopreview —
+    cannot shift the mapping. ``list(dict)`` would otherwise yield the widget
+    *names* as positional values, silently corrupting every widget."""
+    for name, definition in defs:
+        qualified = prefix + name
+        if qualified in connected or qualified not in values:
+            continue
+        selected = values[qualified]
+        inputs[qualified] = selected
+        if definition[0] == DYNAMIC_COMBO_TYPE:
+            options = (definition[1] or {}).get("options") or []
+            option = next((o for o in options if o.get("key") == selected), None)
+            if option is None:
+                issues.append(
+                    f"node {node_id}: unknown option '{selected}' for dynamic combo '{name}'"
+                )
+                continue
+            sub_defs = _widget_defs(option.get("inputs") or {})
+            _assign_widget_values_dict(
+                node_id, sub_defs, values, connected, inputs, issues, prefix=qualified + "."
+            )
+
+
+def _combo_options(spec: dict, name: str) -> list | None:
+    """Legal values for a combo input, from either combo form: legacy
+    definition[0] list, or modern ["COMBO", {"options": [...]}]. None if the
+    input isn't a combo."""
+    for section in ("required", "optional"):
+        definition = (spec.get(section) or {}).get(name)
+        if not isinstance(definition, (list, tuple)) or not definition:
+            continue
+        if isinstance(definition[0], list):
+            return definition[0]
+        if definition[0] == COMBO_TYPE and len(definition) > 1 and isinstance(definition[1], dict):
+            return definition[1].get("options") or []
+    return None
+
+
+def _normalize_model_paths(node_id, class_type: str, inputs: dict, spec: dict, issues) -> None:
+    """Workflows reference model files with whatever subfolder/separator layout
+    the author's machine had; this server's combo lists them with its own.
+    ComfyUI validates by exact string, so 'a/b/model.gguf' vs 'model.gguf' is
+    'Value not in list' even though the file is installed. When a referenced
+    model file isn't in the input's combo options but exactly one option shares
+    its basename, substitute the server's exact string."""
+    for name, value in inputs.items():
+        if not (isinstance(value, str) and value.lower().endswith(MODEL_FILE_EXTS)):
+            continue
+        # ponytail: qualified dynamic-combo sub-inputs ("combo.leaf") aren't in
+        # the top-level spec; normalize plain names only — upgrade if it bites.
+        options = _combo_options(spec, name)
+        if not options or value in options:
+            continue
+        base = value.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        matches = [o for o in options if isinstance(o, str)
+                   and o.replace("\\", "/").rsplit("/", 1)[-1].lower() == base]
+        if len(matches) == 1:
+            inputs[name] = matches[0]
+            issues.append(
+                f"node {node_id}: model path '{value}' normalized to server's '{matches[0]}'"
+            )
+
+
+MODEL_FILE_EXTS = (".safetensors", ".gguf", ".ckpt", ".pt", ".sft")
 
 
 def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
@@ -383,6 +480,12 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
             continue
         if node_type in ("SetNode", "GetNode"):
             continue
+        # legacy generic PrimitiveNode: frontend-only, no execution class, absent
+        # from object_info. Its literal is inlined into each consumer's widget
+        # input below (see _resolve_reroutes handling), so drop the node itself.
+        # Typed PrimitiveInt/Float/String/StringMultiline are real nodes — kept.
+        if node_type == "PrimitiveNode":
+            continue
         if node.get("mode") == 2:  # muted — drop; consumers will report missing input
             issues.append(f"node {node['id']} ({node_type}) is muted; dropped")
             continue
@@ -398,6 +501,13 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
                     node_by_id, links, links.get(inp["link"], (None, 0)), set_by_name
                 )
                 src_node = node_by_id.get(src[0]) if src[0] is not None else None
+                # generic PrimitiveNode feeds a literal into a widget input, not
+                # a link: inline widgets_values[0] as the value. Fan-out is free
+                # since each consumer inlines independently.
+                if src_node is not None and src_node.get("type") == "PrimitiveNode":
+                    inputs[inp["name"]] = (src_node.get("widgets_values") or [None])[0]
+                    connected.add(inp["name"])
+                    continue
                 unresolved = src_node is not None and (
                     src_node.get("type") in ("Reroute", "RerouteNode", "SetNode", "GetNode")
                     or src_node.get("mode") in (2, 4)
@@ -416,9 +526,22 @@ def ui_to_api(ui: dict, object_info: dict) -> ConversionResult:
         widget_defs = (
             [] if class_missing else _widget_defs(object_info.get(node_type, {}).get("input", {}))
         )
-        values = list(node.get("widgets_values") or [])
-        _assign_widget_values(node["id"], widget_defs, values, connected, inputs, issues, 0)
+        raw_values = node.get("widgets_values")
+        if isinstance(raw_values, dict):
+            _assign_widget_values_dict(
+                node["id"], widget_defs, raw_values, connected, inputs, issues
+            )
+        else:
+            # ponytail: legacy list-form widgets_values is still walked positionally;
+            # a node that inlines format-dependent widgets in list form (older VHS)
+            # would still drift. Not observed on this server — upgrade if it appears.
+            values = list(raw_values or [])
+            _assign_widget_values(node["id"], widget_defs, values, connected, inputs, issues, 0)
 
+        if not class_missing:
+            _normalize_model_paths(
+                node["id"], node_type, inputs, object_info[node_type].get("input", {}), issues
+            )
         graph[str(node["id"])] = {"class_type": node_type, "inputs": inputs}
 
     result = ConversionResult()

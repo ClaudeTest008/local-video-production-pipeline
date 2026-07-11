@@ -333,13 +333,21 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
             if kind in ("video", "image"):
                 clips.append({"path": path, "duration": (job.meta or {}).get("duration_s")})
 
+    unfinished = sum(1 for j in jobs if j.status == "queued")
+    if not clips and not unfinished:
+        # enqueued and finished, but ComfyUI wrote no importable frames — the
+        # graph ran without producing video. Never report this as success.
+        return (
+            f"skipped: enqueued {len(jobs)} scene(s) via {note} but ComfyUI produced no "
+            f"importable video/image output — the selected workflow ran without writing "
+            f"frames (check its conversion status on the Workflows page)"
+        )
     if clips:
         Repository(Timeline, db).create(
             project_id=project.id,
             name="Auto assembly",
             tracks=[{"kind": "video", "clips": clips}],
         )
-    unfinished = sum(1 for j in jobs if j.status == "queued")
     detail = (
         f"{len(jobs)} scenes rendered via {note}; {imported} outputs auto-imported; "
         f"timeline assembled with {len(clips)} clips"

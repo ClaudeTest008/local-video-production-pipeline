@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.ai.registry import get_provider, list_providers
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.media import ffmpeg, transcribe, tts
+from app.core.media import ffmpeg
 from app.modules.comfyui.client import ComfyUIClient
 from app.modules.comfyui.models import ComfyJob
 from app.modules.pipeline.models import PipelineRun
@@ -112,11 +112,7 @@ def health(db: DB) -> dict:
         "database": settings.database_url.split(":", 1)[0],
         "comfyui": _comfy_health(),
         "providers": providers,
-        "engines": {
-            "ffmpeg": ffmpeg.has_ffmpeg(),
-            "whisper": transcribe.whisper_available(),
-            "tts": [{"name": e, "available": tts.engine_available(e)} for e in tts.ENGINES],
-        },
+        "engines": {"ffmpeg": ffmpeg.has_ffmpeg()},
         "pipeline": {
             "running": count_runs("running"),
             "errored": count_runs("error"),

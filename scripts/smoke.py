@@ -88,8 +88,8 @@ def main() -> None:
         check("pipeline completed", result["run"]["status"] == "done", str(statuses))
         for stage in ("research", "script", "storyboard", "prompts", "seo", "thumbnail"):
             check(f"stage {stage}", statuses.get(stage) == "done", str(statuses))
-        for stage in ("images", "voice"):
-            check(f"stage {stage} graceful", statuses.get(stage) in ("done", "skipped"))
+        check("stage images graceful", statuses.get("images") in ("done", "skipped"))
+        check("no standalone voice stage (pure ComfyUI)", "voice" not in statuses)
 
         scripts = client.get("/scripts", params={"project_id": project["id"]}).json()
         check("script artifact", len(scripts) == 1 and len(scripts[0]["content"]) > 0)

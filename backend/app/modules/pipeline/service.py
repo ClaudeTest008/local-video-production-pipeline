@@ -4,9 +4,9 @@ Each stage handler: gather context (brand + prior artifacts) → run the right
 agent role → persist artifacts into the owning feature module → advance the
 project's pipeline status. Handlers are ordered; a run steps through them.
 
-Media stages (images, voice) are best-effort: they run when the local engine
-(ComfyUI / TTS) is available and are logged as skipped otherwise — a run never
-fails because optional local tooling is absent.
+Media stages are best-effort: they run when ComfyUI is reachable and are
+logged as skipped otherwise — a run never fails because optional local
+tooling is absent. Voice and lip-sync come from ComfyUI workflows only.
 """
 
 import logging
@@ -41,7 +41,6 @@ STAGES: list[tuple[str, str]] = [
     ("storyboard", "storyboard"),
     ("prompts", "prompts"),
     ("images", "images"),
-    ("voice", "voice"),
     ("seo", "seo"),
     ("thumbnail", "thumbnail"),
 ]
@@ -258,28 +257,6 @@ def _stage_images(db: Session, project: Project, context: str) -> str:
     return f"{queued} render jobs queued (workflow '{workflow.name}' v{workflow.version})"
 
 
-def _stage_voice(db: Session, project: Project, context: str) -> str:
-    from app.core import files
-    from app.core.media import tts
-    from app.modules.voice.models import VoiceJob
-
-    engine = next((e for e in tts.ENGINES if tts.engine_available(e)), None)
-    if engine is None:
-        return "skipped: no TTS engine available (piper/xtts/kokoro)"
-    script = _latest_script(db, project.id)
-    if script is None:
-        return "skipped: no script"
-    job = Repository(VoiceJob, db).create(project_id=project.id, engine=engine, text=script.content)
-    output = files.project_dir(project.id) / "assets" / "audio" / f"voice-{job.id}.wav"
-    try:
-        tts.synthesize(engine, script.content, str(output))
-    except Exception as e:
-        Repository(VoiceJob, db).update(job.id, status="error", meta={"error": str(e)[:500]})
-        return f"voice failed: {str(e)[:200]}"
-    Repository(VoiceJob, db).update(job.id, status="done", output_path=str(output))
-    return f"voice-over rendered with {engine}"
-
-
 def _stage_seo(db: Session, project: Project, context: str) -> str:
     script = _latest_script(db, project.id)
     content = _run_role(
@@ -319,7 +296,6 @@ HANDLERS = {
     "storyboard": _stage_storyboard,
     "prompts": _stage_prompts,
     "images": _stage_images,
-    "voice": _stage_voice,
     "seo": _stage_seo,
     "thumbnail": _stage_thumbnail,
 }

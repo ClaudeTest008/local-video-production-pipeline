@@ -80,11 +80,7 @@ export interface SystemHealth {
     devices?: { name: string; vram_total_mb: number; vram_free_mb: number }[];
   };
   providers: { name: string; available: boolean }[];
-  engines: {
-    ffmpeg: boolean;
-    whisper: boolean;
-    tts: { name: string; available: boolean }[];
-  };
+  engines: { ffmpeg: boolean };
   pipeline: { running: number; errored: number };
   render_queue: { queued_jobs: number };
 }
@@ -234,16 +230,6 @@ export interface WorkflowDef extends Timestamped {
 export interface ProviderStatus {
   name: string;
   available: boolean;
-}
-
-export interface VoiceJob extends Timestamped {
-  project_id: number;
-  engine: string;
-  text: string;
-  voice: string;
-  status: string;
-  output_path: string;
-  meta: Record<string, unknown>;
 }
 
 export interface SeoPack extends Timestamped {

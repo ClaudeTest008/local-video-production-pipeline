@@ -16,7 +16,7 @@ def test_detect_shape(client):
     d = client.get("/api/system/detect").json()
     assert d["python"]["found"] is True
     assert "found" in d["ffmpeg"] and "found" in d["git"]
-    assert {t["name"] for t in d["tts"]} == {"piper", "xtts", "kokoro"}
+    assert "tts" not in d and "whisper" not in d  # v1.2: pure-ComfyUI
     assert "found" in d["ollama"] and "found" in d["comfyui"]
     assert d["workflow_hint"] in ("heavy", "light", "cpu")
     assert isinstance(d["gpus"], list)

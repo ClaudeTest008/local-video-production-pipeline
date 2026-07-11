@@ -74,13 +74,6 @@ CATALOG: list[dict] = [
         "env": {},
     },
     {
-        "name": "whisper",
-        "description": "Local speech-to-text",
-        "command": "uvx",
-        "args": ["whisper-mcp"],
-        "env": {},
-    },
-    {
         "name": "browser",
         "description": "Headless browser fetch/read",
         "command": "npx",

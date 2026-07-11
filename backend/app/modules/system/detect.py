@@ -9,7 +9,6 @@ import sys
 import httpx
 
 from app.core.config import settings
-from app.core.media import transcribe, tts
 from app.modules.comfyui.client import ComfyUIClient
 
 
@@ -123,15 +122,6 @@ def detect_all() -> dict:
             ),
         },
         "git": _cli("git", ["--version"]),
-        "whisper": {
-            "found": transcribe.whisper_available(),
-            **(
-                {}
-                if transcribe.whisper_available()
-                else {"fix": 'pip install -e ".[transcribe]" inside backend/'}
-            ),
-        },
-        "tts": [{"name": e, "found": tts.engine_available(e)} for e in tts.ENGINES],
         "ollama": _ollama(),
         "comfyui": _comfyui(),
         "gpus": gpus,

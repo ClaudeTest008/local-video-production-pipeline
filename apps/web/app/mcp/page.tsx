@@ -144,7 +144,7 @@ export default function McpPage() {
         {servers.data?.length === 0 && (
           <EmptyState
             title="No servers registered"
-            hint="The built-in catalog ships filesystem, git, github, comfyui, whisper, ffmpeg and more — one click on Discover servers registers them all."
+            hint="The built-in catalog ships filesystem, git, github, comfyui, ffmpeg and more — one click on Discover servers registers them all."
             action={
               <Button onClick={() => discover.mutate()} disabled={discover.isPending}>
                 <RadioTower className="size-4" /> Discover servers

@@ -82,7 +82,7 @@ def test_producer_run_full_pipeline(client):
     assert statuses["storyboard"] == "done"
     assert statuses["prompts"] == "done"
     assert statuses["images"] == "skipped"  # no ComfyUI in tests
-    assert statuses["voice"] == "skipped"  # no TTS engine in tests
+    assert "voice" not in statuses  # v1.2: voice/lip-sync comes from ComfyUI workflows
     assert statuses["seo"] == "done"
     assert statuses["thumbnail"] == "done"
     assert result["run"]["status"] == "done"

@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.media import transcribe as stt
 from app.core.repository import Repository
 from app.modules.subtitles.models import SubtitleTrack
 from app.modules.subtitles.service import to_srt, to_vtt
@@ -32,13 +31,6 @@ class TrackCreate(BaseModel):
 class TrackUpdate(BaseModel):
     language: str | None = None
     segments: list[dict] | None = None
-
-
-class TranscribeRequest(BaseModel):
-    project_id: int
-    audio_path: str
-    language: str | None = None
-    model_size: str = "base"
 
 
 @router.get("")
@@ -71,17 +63,3 @@ def export_track(track_id: int, tracks: Tracks, fmt: Literal["srt", "vtt"] = "sr
     if track is None:
         raise HTTPException(404, f"track {track_id} not found")
     return to_srt(track.segments) if fmt == "srt" else to_vtt(track.segments)
-
-
-@router.post("/transcribe", status_code=201)
-def transcribe_audio(payload: TranscribeRequest, tracks: Tracks):
-    if not stt.whisper_available():
-        raise HTTPException(
-            501, 'transcription requires the optional extra: pip install -e ".[transcribe]"'
-        )
-    segments = stt.transcribe(
-        payload.audio_path, model_size=payload.model_size, language=payload.language
-    )
-    return tracks.create(
-        project_id=payload.project_id, language=payload.language or "en", segments=segments
-    )

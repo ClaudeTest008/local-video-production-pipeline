@@ -9,7 +9,7 @@ def test_system_health_shape(client):
     assert "available" in health["comfyui"]
     assert {p["name"] for p in health["providers"]} >= {"ollama", "openai", "scripted"}
     assert health["engines"]["ffmpeg"] in (True, False)
-    assert {e["name"] for e in health["engines"]["tts"]} == {"piper", "xtts", "kokoro"}
+    assert "tts" not in health["engines"] and "whisper" not in health["engines"]
     assert set(health["pipeline"]) == {"running", "errored"}
     assert "queued_jobs" in health["render_queue"]
 

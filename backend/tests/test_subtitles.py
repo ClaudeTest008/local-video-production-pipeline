@@ -32,8 +32,6 @@ def test_track_crud_and_export(client, project):
     assert client.delete(f"/api/subtitles/{track['id']}").status_code == 204
 
 
-def test_transcribe_needs_extra(client, project):
-    resp = client.post(
-        "/api/subtitles/transcribe", json={"project_id": project["id"], "audio_path": "x.wav"}
-    )
-    assert resp.status_code in (201, 501)  # 501 without the optional extra installed
+def test_transcribe_endpoint_removed(client):
+    # v1.2: whisper removed entirely; subtitle text comes from the script/ComfyUI
+    assert client.post("/api/subtitles/transcribe", json={}).status_code in (404, 405)

@@ -132,7 +132,7 @@ export default function PipelinePage() {
       {runs.data?.length === 0 && (
         <EmptyState
           title="No runs yet"
-          hint="Pick a project and start a run. Media stages (images, voice) engage automatically when ComfyUI or a TTS engine is running."
+          hint="Pick a project and start a run. Video, voice, and lip-sync all render through your ComfyUI workflows when ComfyUI is running."
         />
       )}
       <div className="space-y-4">

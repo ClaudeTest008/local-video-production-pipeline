@@ -1,7 +1,8 @@
 def test_mcp_discover_toggle_export(client):
     catalog = client.get("/api/mcp/catalog").json()
     names = {entry["name"] for entry in catalog}
-    assert {"filesystem", "git", "github", "comfyui", "ffmpeg", "whisper", "local-rag"} <= names
+    assert {"filesystem", "git", "github", "comfyui", "ffmpeg", "local-rag"} <= names
+    assert "whisper" not in names  # v1.2: pure-ComfyUI, whisper removed
 
     discovered = client.post("/api/mcp/discover").json()
     assert set(discovered["added"]) == names

@@ -22,7 +22,6 @@ import type {
   Script,
   SubtitleTrack,
   Timeline,
-  VoiceJob,
   WorkflowDef,
 } from "./types";
 
@@ -91,7 +90,6 @@ export class ApiClient {
   assets = (projectId?: number) => this.listByProject<Asset>("assets", projectId);
   timelines = (projectId?: number) => this.listByProject<Timeline>("timelines", projectId);
   subtitles = (projectId?: number) => this.listByProject<SubtitleTrack>("subtitles", projectId);
-  voiceJobs = (projectId?: number) => this.listByProject<VoiceJob>("voice/jobs", projectId);
 
   // Agents
   agentPresets = () => this.get<AgentPreset[]>("/agents/presets");

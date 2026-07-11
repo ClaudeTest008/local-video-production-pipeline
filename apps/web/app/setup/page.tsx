@@ -123,8 +123,6 @@ export default function SetupWizard() {
               <DetectRow label="Python (backend)" item={d.python} extra={d.python.version} />
               <DetectRow label="FFmpeg (video export)" item={d.ffmpeg} extra={d.ffmpeg.version} />
               <DetectRow label="Git" item={d.git} />
-              <DetectRow label="Whisper (captions)" item={d.whisper} />
-              <DetectRow label="TTS engines (voice-over)" item={d.tts} />
               <DetectRow
                 label="Ollama (local AI)"
                 item={d.ollama}

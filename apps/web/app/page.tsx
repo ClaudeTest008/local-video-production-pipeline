@@ -46,9 +46,7 @@ function HealthCard() {
           {providersUp.length > 0 ? providersUp.map((p) => p.name).join(", ") : "none reachable"}
         </li>
         <li className="flex items-center gap-2">
-          <Dot ok={h.engines.ffmpeg} /> FFmpeg
-          <Dot ok={h.engines.whisper} /> Whisper
-          <Dot ok={h.engines.tts.some((t) => t.available)} /> TTS
+          <Dot ok={h.engines.ffmpeg} /> FFmpeg (export)
         </li>
         <li className="flex items-center gap-2">
           <Dot ok={h.pipeline.errored === 0} /> pipeline: {h.pipeline.running} running,{" "}

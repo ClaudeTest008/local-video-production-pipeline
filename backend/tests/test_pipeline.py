@@ -81,8 +81,9 @@ def test_producer_run_full_pipeline(client):
     assert statuses["script"] == "done"
     assert statuses["storyboard"] == "done"
     assert statuses["prompts"] == "done"
-    assert statuses["images"] == "skipped"  # no ComfyUI in tests
+    assert statuses["video"] == "skipped"  # no ComfyUI in tests
     assert "voice" not in statuses  # v1.2: voice/lip-sync comes from ComfyUI workflows
+    assert statuses["captions"] == "done"
     assert statuses["seo"] == "done"
     assert statuses["thumbnail"] == "done"
     assert result["run"]["status"] == "done"
@@ -94,6 +95,9 @@ def test_producer_run_full_pipeline(client):
 
     seo = client.get("/api/seo", params={"project_id": pid}).json()
     assert seo[0]["title"] == "Why Rome Fell" and "rome" in seo[0]["tags"]
+
+    tracks = client.get("/api/subtitles", params={"project_id": pid}).json()
+    assert tracks and len(tracks[0]["segments"]) >= 1  # captions from the script
 
     # quality review loop: Creative Director demanded a revision; script was rewritten
     scripts = client.get("/api/scripts", params={"project_id": pid}).json()

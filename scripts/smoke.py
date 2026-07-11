@@ -86,9 +86,9 @@ def main() -> None:
         result = client.post(f"/pipeline/runs/{run['id']}/run-all").json()
         statuses = {e["stage"]: e["status"] for e in result["entries"]}
         check("pipeline completed", result["run"]["status"] == "done", str(statuses))
-        for stage in ("research", "script", "storyboard", "prompts", "seo", "thumbnail"):
+        for stage in ("research", "script", "storyboard", "prompts", "captions", "seo", "thumbnail"):
             check(f"stage {stage}", statuses.get(stage) == "done", str(statuses))
-        check("stage images graceful", statuses.get("images") in ("done", "skipped"))
+        check("stage video graceful", statuses.get("video") in ("done", "skipped"))
         check("no standalone voice stage (pure ComfyUI)", "voice" not in statuses)
 
         scripts = client.get("/scripts", params={"project_id": project["id"]}).json()

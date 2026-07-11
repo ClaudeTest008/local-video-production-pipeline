@@ -1,0 +1,110 @@
+"""Workflow discovery, import, and automatic selection.
+
+Users never touch nodes: LVPP consumes workflows that already exist in the
+user's ComfyUI (saved library + Browse Templates index) or that they upload
+as .json. Selection prefers integrated video+voice/lip-sync workflows.
+"""
+
+import logging
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.repository import Repository
+from app.modules.comfyui.client import ComfyUIClient
+from app.modules.comfyui.convert import ui_to_api
+from app.modules.workflows.classify import TYPE_PRIORITY, classify
+from app.modules.workflows.models import WorkflowDef
+
+logger = logging.getLogger(__name__)
+
+
+def _upsert(db: Session, name: str, graph: dict, source: str, issues: list[str]) -> WorkflowDef:
+    meta = {"conversion_issues": issues, "conversion_status": "check_required" if issues else "ok"}
+    info = classify(name, graph)
+    existing = db.scalar(
+        select(WorkflowDef).where(WorkflowDef.name == name, WorkflowDef.source == source)
+    )
+    repo = Repository(WorkflowDef, db)
+    if existing:
+        return repo.update(existing.id, graph=graph, meta={**existing.meta, **meta}, **info)
+    return repo.create(name=name, kind="comfyui", graph=graph, source=source, meta=meta, **info)
+
+
+def discover(db: Session) -> dict:
+    """Import every workflow saved in the user's ComfyUI library."""
+    client = ComfyUIClient()
+    if not client.is_available():
+        return {"imported": [], "failed": [], "error": "ComfyUI not reachable"}
+    object_info = client.object_info()
+    imported, failed = [], []
+    for filename in client.list_server_workflows():
+        name = filename.rsplit("/", 1)[-1].removesuffix(".json")
+        try:
+            ui = client.get_server_workflow(filename)
+            if "nodes" in ui:  # UI format → convert
+                result = ui_to_api(ui, object_info)
+                graph, issues = result["graph"], result["issues"]
+            else:  # already API format
+                graph, issues = ui, []
+            wf = _upsert(db, name, graph, "imported", issues)
+            imported.append(
+                {"id": wf.id, "name": name, "wf_type": wf.wf_type, "issues": len(issues)}
+            )
+        except Exception as e:
+            logger.warning("workflow import failed for %s: %s", filename, e)
+            failed.append({"name": name, "error": str(e)[:200]})
+    return {"imported": imported, "failed": failed}
+
+
+def upload(db: Session, name: str, payload: dict) -> WorkflowDef:
+    """User-uploaded .json — UI or API format, converted as needed."""
+    if "nodes" in payload and isinstance(payload.get("nodes"), list):
+        client = ComfyUIClient()
+        object_info = client.object_info() if client.is_available() else {}
+        result = ui_to_api(payload, object_info)
+        graph, issues = result["graph"], result["issues"]
+        if not object_info:
+            issues.append("converted without a live ComfyUI (widget mapping unverified)")
+    else:
+        graph, issues = payload, []
+    return _upsert(db, name, graph, "uploaded", issues)
+
+
+def select_workflow(
+    db: Session, preferred_id: int | None = None, want: tuple[str, ...] = ()
+) -> tuple[WorkflowDef | None, str]:
+    """Best enabled workflow. Order: explicit preference → favorites → type
+    priority (video_lipsync > avatar > video > image) → newest. Returns
+    (workflow, note); note explains degradations ("only image workflows")."""
+    if preferred_id:
+        preferred = db.get(WorkflowDef, preferred_id)
+        if preferred is not None and preferred.enabled and preferred.graph:
+            return preferred, f"brand-preferred workflow '{preferred.name}'"
+
+    candidates = [
+        wf
+        for wf in db.scalars(select(WorkflowDef).where(WorkflowDef.kind == "comfyui"))
+        if wf.enabled and wf.graph
+    ]
+    if want:
+        wanted = [wf for wf in candidates if wf.wf_type in want]
+        candidates = wanted or candidates
+    if not candidates:
+        return None, "no enabled ComfyUI workflows — discover or upload one first"
+
+    candidates.sort(
+        key=lambda wf: (
+            not wf.favorite,
+            TYPE_PRIORITY.get(wf.wf_type, 9),
+            -(wf.id or 0),
+        )
+    )
+    chosen = candidates[0]
+    note = f"auto-selected '{chosen.name}' ({chosen.wf_type})"
+    if chosen.wf_type == "image":
+        note += (
+            " — only image workflows available; save or upload a video/lip-sync "
+            "workflow for full video generation"
+        )
+    return chosen, note

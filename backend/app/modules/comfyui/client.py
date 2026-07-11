@@ -93,6 +93,26 @@ class ComfyUIClient:
             )
         return resp.json()["prompt_id"]
 
+    def list_server_workflows(self) -> list[str]:
+        """Workflows saved in ComfyUI's user library (the web UI's own list)."""
+        resp = self._http.get("/userdata", params={"dir": "workflows", "recurse": "true"})
+        resp.raise_for_status()
+        return [f for f in resp.json() if isinstance(f, str) and f.endswith(".json")]
+
+    def get_server_workflow(self, filename: str) -> dict:
+        """Raw UI-format JSON of a saved workflow."""
+        encoded = httpx.QueryParams({"f": f"workflows/{filename}"})["f"].replace("/", "%2F")
+        resp = self._http.get(f"/userdata/{encoded}", timeout=60)
+        resp.raise_for_status()
+        return resp.json()
+
+    def list_templates(self) -> dict[str, list[str]]:
+        """Official + custom-node workflow templates index ({module: [names]})."""
+        resp = self._http.get("/api/workflow_templates", timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, dict) else {}
+
     def get_queue(self) -> dict:
         resp = self._http.get("/queue")
         resp.raise_for_status()

@@ -58,13 +58,19 @@ def test_brand_preferred_workflow_selected(client, monkeypatch):
 
     monkeypatch.setattr(ComfyUIClient, "is_available", lambda self: True)
     monkeypatch.setattr(ComfyUIClient, "queue_prompt", lambda self, wf: "brandwf1")
+    # renders "finish" instantly with no outputs — the wait loop must exit cleanly
+    monkeypatch.setattr(
+        ComfyUIClient,
+        "get_history",
+        lambda self, pid: {"status": {"completed": True}, "outputs": {}},
+    )
 
     run = client.post(
         "/api/pipeline/runs", json={"project_id": project["id"], "mode": "producer"}
     ).json()
     result = client.post(f"/api/pipeline/runs/{run['id']}/run-all").json()
-    images = next(e for e in result["entries"] if e["stage"] == "images")
-    assert "brand-wf" in images["detail"]
+    video = next(e for e in result["entries"] if e["stage"] == "video")
+    assert "brand-wf" in video["detail"]
 
     jobs = client.get("/api/comfyui/jobs", params={"project_id": project["id"]}).json()
     assert jobs and all(j["workflow_def_id"] == preferred["id"] for j in jobs)

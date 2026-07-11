@@ -40,7 +40,8 @@ STAGES: list[tuple[str, str]] = [
     ("script", "script"),
     ("storyboard", "storyboard"),
     ("prompts", "prompts"),
-    ("images", "images"),
+    ("video", "video"),
+    ("captions", "captions"),
     ("seo", "seo"),
     ("thumbnail", "thumbnail"),
 ]
@@ -212,49 +213,138 @@ def _stage_prompts(db: Session, project: Project, context: str) -> str:
     return f"{len(scenes)} scene prompts generated"
 
 
-def _stage_images(db: Session, project: Project, context: str) -> str:
-    """Queue one ComfyUI job per scene using the recommended workflow, if possible."""
+def _stage_video(db: Session, project: Project, context: str) -> str:
+    """Render every scene through the best enabled ComfyUI workflow (video +
+    integrated voice/lip-sync preferred), wait, auto-import the outputs into
+    project assets, and assemble the timeline."""
+    import time
+
+    from app.core import files
+    from app.core.config import settings
+    from app.modules.assets.models import Asset
+    from app.modules.comfyui import service as comfy_service
     from app.modules.comfyui.client import ComfyUIClient
-    from app.modules.workflows.models import WorkflowDef
+    from app.modules.comfyui.models import ComfyJob
+    from app.modules.timeline.models import Timeline
+    from app.modules.workflows.service import select_workflow
 
     client = ComfyUIClient()
     if not client.is_available():
         return "skipped: ComfyUI not running"
-    # brand preference wins; otherwise the newest saved ComfyUI graph
     brand = db.get(Brand, project.brand_id) if project.brand_id else None
-    workflow = None
-    if brand and brand.preferred_workflow_id:
-        workflow = db.get(WorkflowDef, brand.preferred_workflow_id)
+    workflow, note = select_workflow(
+        db,
+        preferred_id=brand.preferred_workflow_id if brand else None,
+        want=("video_lipsync", "avatar", "video"),
+    )
     if workflow is None:
-        workflow = db.scalars(
-            select(WorkflowDef).where(WorkflowDef.kind == "comfyui").order_by(WorkflowDef.id.desc())
-        ).first()
-    if workflow is None or not workflow.graph:
-        return "skipped: no ComfyUI workflow saved in Workflow Manager"
+        return f"skipped: {note}"
 
-    from app.modules.comfyui.models import ComfyJob
-    from app.modules.comfyui.service import inject_prompt, record_queued
-
-    queued = 0
-    for scene in _scenes(db, project.id):
-        if not scene.prompt:
-            continue
-        graph = inject_prompt(workflow.graph, scene.prompt)
+    jobs_repo = Repository(ComfyJob, db)
+    scenes = [s for s in _scenes(db, project.id) if s.prompt]
+    jobs = []
+    for scene in scenes:
+        # lip-sync/video workflows speak the scene text: prompt carries visuals + dialogue
+        prompt = scene.prompt
+        if scene.description and workflow.wf_type in ("video_lipsync", "avatar"):
+            prompt = f"{scene.prompt}. Spoken dialogue: {scene.description}"
+        graph = comfy_service.inject_prompt(workflow.graph, prompt)
         try:
             prompt_id = client.queue_prompt(graph)
-        except Exception as e:  # comfy died mid-run — log, keep going
+        except Exception as e:
             logger.warning("queue failed for scene %s: %s", scene.id, e)
             continue
-        job = Repository(ComfyJob, db).create(
+        job = jobs_repo.create(
             project_id=project.id,
             prompt_id=prompt_id,
             workflow=graph,
             workflow_def_id=workflow.id,
-            meta={"scene_id": scene.id},
+            meta={"scene_id": scene.id, "duration_s": scene.duration_s},
         )
-        record_queued(job)
-        queued += 1
-    return f"{queued} render jobs queued (workflow '{workflow.name}' v{workflow.version})"
+        comfy_service.record_queued(job)
+        jobs.append(job)
+    if not jobs:
+        return "skipped: no scenes with prompts to render"
+
+    # wait for renders, then auto-import outputs into the project tree
+    deadline = time.time() + settings.render_timeout_s * len(jobs)
+    clips: list[dict] = []
+    imported = 0
+    assets_repo = Repository(Asset, db)
+    for job in jobs:
+        while job.status == "queued" and time.time() < deadline:
+            time.sleep(5)
+            job = comfy_service.refresh_job(db, client, job)
+        for output in job.outputs or []:
+            kind = (
+                "video"
+                if output.get("kind") in ("videos", "gifs")
+                else ("audio" if output.get("kind") == "audio" else "image")
+            )
+            dest_dir = (
+                files.project_dir(project.id)
+                / "assets"
+                / ("video" if kind == "video" else "audio" if kind == "audio" else "images")
+            )
+            try:
+                path = comfy_service.download_output(client, output, dest_dir)
+            except Exception as e:
+                logger.warning("auto-import failed for %s: %s", output.get("filename"), e)
+                continue
+            assets_repo.create(project_id=project.id, kind=kind, path=path, source="comfyui")
+            imported += 1
+            if kind in ("video", "image"):
+                clips.append({"path": path, "duration": (job.meta or {}).get("duration_s")})
+
+    if clips:
+        Repository(Timeline, db).create(
+            project_id=project.id,
+            name="Auto assembly",
+            tracks=[{"kind": "video", "clips": clips}],
+        )
+    unfinished = sum(1 for j in jobs if j.status == "queued")
+    detail = (
+        f"{len(jobs)} scenes rendered via {note}; {imported} outputs auto-imported; "
+        f"timeline assembled with {len(clips)} clips"
+    )
+    if unfinished:
+        detail += f"; {unfinished} still rendering (retry the stage to collect them)"
+    if workflow.wf_type == "image":
+        detail += ". NOTE: only image workflows available — no native voice/lip-sync"
+    return detail
+
+
+def _stage_captions(db: Session, project: Project, context: str) -> str:
+    """Caption track from the script, timed across the storyboard; SRT written
+    into the project tree. Burn happens on timeline export (burn_subtitles)."""
+    import re
+
+    from app.core import files
+    from app.modules.subtitles.models import SubtitleTrack
+    from app.modules.subtitles.service import to_srt
+
+    script = _latest_script(db, project.id)
+    if script is None:
+        return "skipped: no script"
+    scenes = _scenes(db, project.id)
+    total = sum(s.duration_s for s in scenes) or 60.0
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", re.sub(r"[#*\[\]()]", "", script.content))
+        if 15 < len(s.strip()) < 220
+    ][:40]
+    if not sentences:
+        return "skipped: script has no caption-able sentences"
+    per = total / len(sentences)
+    segments = [
+        {"start": round(i * per, 2), "end": round((i + 1) * per, 2), "text": s}
+        for i, s in enumerate(sentences)
+    ]
+    track = Repository(SubtitleTrack, db).create(project_id=project.id, segments=segments)
+    srt_path = files.project_dir(project.id) / "captions" / "captions.srt"
+    srt_path.parent.mkdir(parents=True, exist_ok=True)
+    srt_path.write_text(to_srt(segments), encoding="utf-8")
+    return f"{len(segments)} caption segments (track {track.id}) -> {srt_path}"
 
 
 def _stage_seo(db: Session, project: Project, context: str) -> str:
@@ -295,7 +385,8 @@ HANDLERS = {
     "script": _stage_script,
     "storyboard": _stage_storyboard,
     "prompts": _stage_prompts,
-    "images": _stage_images,
+    "video": _stage_video,
+    "captions": _stage_captions,
     "seo": _stage_seo,
     "thumbnail": _stage_thumbnail,
 }

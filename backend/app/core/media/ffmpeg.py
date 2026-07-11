@@ -9,8 +9,17 @@ def has_ffmpeg() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+def _subtitles_filter_path(path: str) -> str:
+    """Escape a path for ffmpeg's subtitles filter (Windows drive colon)."""
+    return path.replace("\\", "/").replace(":", r"\:")
+
+
 def build_concat_command(
-    clips: list[str], output: str, fps: float = 30, resolution: str = "1920x1080"
+    clips: list[str],
+    output: str,
+    fps: float = 30,
+    resolution: str = "1920x1080",
+    subtitles_path: str | None = None,
 ) -> list[str]:
     """Concat clips re-encoded to a uniform format. Supports .mp4/.mov output.
 
@@ -37,13 +46,12 @@ def build_concat_command(
     )
     filters = "".join(f"[{i}:v]{scale}[v{i}];" for i in range(n))
     concat_in = "".join(f"[v{i}]" for i in range(n))
-    cmd += [
-        "-filter_complex",
-        f"{filters}{concat_in}concat=n={n}:v=1:a=0[out]",
-        "-map",
-        "[out]",
-        output,
-    ]
+    chain = f"{filters}{concat_in}concat=n={n}:v=1:a=0[cat]"
+    if subtitles_path:
+        chain += f";[cat]subtitles='{_subtitles_filter_path(subtitles_path)}'[out]"
+    else:
+        chain = chain.replace("[cat]", "[out]")
+    cmd += ["-filter_complex", chain, "-map", "[out]", output]
     return cmd
 
 

@@ -49,5 +49,8 @@ class Settings(BaseSettings):
     # calls per reviewed stage — disable with LVPP_PIPELINE_REVIEW=false.
     pipeline_review: bool = True
 
+    # Per-render wait budget in the pipeline's video stage (video models are slow)
+    render_timeout_s: int = 1800
+
 
 settings = Settings()

@@ -42,6 +42,7 @@ class TimelineUpdate(BaseModel):
 class ExportRequest(BaseModel):
     format: Literal["mp4", "mov"] = "mp4"
     run: bool = True  # False = dry-run, return the ffmpeg command only
+    burn_subtitles: bool = False  # burn the project's latest caption track
 
 
 def _video_clips(timeline: Timeline) -> list[dict]:
@@ -99,8 +100,32 @@ def export(timeline_id: int, payload: ExportRequest, timelines: Timelines) -> di
         / "exports"
         / f"{timeline.name.replace(' ', '_')}.{payload.format}"
     )
+    subtitles_path = None
+    if payload.burn_subtitles:
+        from sqlalchemy import select as _select
+
+        from app.modules.subtitles.models import SubtitleTrack
+        from app.modules.subtitles.service import to_srt
+
+        track = timelines.db.scalars(
+            _select(SubtitleTrack)
+            .where(SubtitleTrack.project_id == timeline.project_id)
+            .order_by(SubtitleTrack.id.desc())
+        ).first()
+        if track is None:
+            raise HTTPException(
+                422, "burn_subtitles requested but the project has no caption track"
+            )
+        srt_file = files.project_dir(timeline.project_id) / "captions" / "captions.srt"
+        srt_file.parent.mkdir(parents=True, exist_ok=True)
+        srt_file.write_text(to_srt(track.segments), encoding="utf-8")
+        subtitles_path = str(srt_file)
     cmd = ffmpeg.build_concat_command(
-        clips, str(output), fps=timeline.fps, resolution=timeline.resolution
+        clips,
+        str(output),
+        fps=timeline.fps,
+        resolution=timeline.resolution,
+        subtitles_path=subtitles_path,
     )
     if not payload.run:
         return {"status": "dry_run", "command": cmd}

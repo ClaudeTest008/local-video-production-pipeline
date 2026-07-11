@@ -7,6 +7,8 @@ from pathlib import Path
 _tmp = Path(tempfile.mkdtemp(prefix="lvpp-test-"))
 os.environ["LVPP_DATABASE_URL"] = f"sqlite:///{(_tmp / 'test.db').as_posix()}"
 os.environ["LVPP_PROJECTS_ROOT"] = str(_tmp / "projects")
+# never let unit tests reach a real local ComfyUI/Ollama (dev machines run them)
+os.environ["LVPP_COMFYUI_URL"] = "http://127.0.0.1:65530"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

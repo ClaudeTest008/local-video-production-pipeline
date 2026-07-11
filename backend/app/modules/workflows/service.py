@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.repository import Repository
 from app.modules.comfyui.client import ComfyUIClient
 from app.modules.comfyui.convert import ui_to_api
-from app.modules.workflows.classify import TYPE_PRIORITY, classify
+from app.modules.workflows.classify import MODEL_EXTS, TYPE_PRIORITY, classify
 from app.modules.workflows.models import WorkflowDef
 
 logger = logging.getLogger(__name__)
@@ -69,6 +69,57 @@ def upload(db: Session, name: str, payload: dict) -> WorkflowDef:
     else:
         graph, issues = payload, []
     return _upsert(db, name, graph, "uploaded", issues)
+
+
+def _installed_model_names(object_info: dict) -> set[str]:
+    """Every model filename the server offers across all loader combo widgets."""
+    names: set[str] = set()
+    for info in object_info.values():
+        spec = info.get("input", {})
+        for section in ("required", "optional"):
+            for definition in spec.get(section, {}).values():
+                if isinstance(definition, (list, tuple)) and definition and isinstance(
+                    definition[0], list
+                ):
+                    names |= {
+                        opt
+                        for opt in definition[0]
+                        if isinstance(opt, str) and opt.lower().endswith(MODEL_EXTS)
+                    }
+    return names
+
+
+def _basename(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+
+
+def analyze_dependencies(graph: dict, object_info: dict) -> dict:
+    """What a converted workflow needs that this server lacks.
+
+    ``missing_nodes`` is authoritative — a class absent from object_info is not
+    registered. ``missing_models`` is best-effort: workflows reference models by
+    varying subfolder/separator conventions, so a filename counts as present if
+    its exact string OR its basename matches an installed model (the basename
+    fallback avoids false positives like ``LTXvideo/LTX-2/foo.gguf`` vs ``foo.gguf``).
+    """
+    installed = _installed_model_names(object_info)
+    installed_base = {_basename(m) for m in installed}
+    classes = {n.get("class_type") for n in graph.values()}
+    missing_nodes = sorted(c for c in classes if c and c not in object_info)
+    referenced = {
+        value
+        for node in graph.values()
+        for value in (node.get("inputs") or {}).values()
+        if isinstance(value, str) and value.lower().endswith(MODEL_EXTS)
+    }
+    missing_models = sorted(
+        m for m in referenced if m not in installed and _basename(m) not in installed_base
+    )
+    return {
+        "missing_nodes": missing_nodes,
+        "missing_models": missing_models,
+        "renderable": not missing_nodes and not missing_models,
+    }
 
 
 def select_workflow(

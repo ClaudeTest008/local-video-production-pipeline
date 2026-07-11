@@ -106,6 +106,24 @@ def get_workflow(workflow_id: int, workflows: Workflows):
     return wf
 
 
+@router.get("/{workflow_id}/dependencies")
+def workflow_dependencies(workflow_id: int, workflows: Workflows) -> dict:
+    """Which custom nodes / models this workflow needs that the connected
+    ComfyUI lacks — so the UI can guide the user instead of surfacing a raw
+    ComfyUI console error. Computed live against the server (no DB storage)."""
+    wf = workflows.get(workflow_id)
+    if wf is None:
+        raise HTTPException(404, f"workflow {workflow_id} not found")
+    from app.modules.comfyui.client import ComfyUIClient
+    from app.modules.workflows.service import analyze_dependencies
+
+    client = ComfyUIClient()
+    if not client.is_available():
+        return {"available": False, "workflow_id": workflow_id, "name": wf.name}
+    deps = analyze_dependencies(wf.graph, client.object_info())
+    return {"available": True, "workflow_id": workflow_id, "name": wf.name, **deps}
+
+
 @router.patch("/{workflow_id}")
 def update_workflow(workflow_id: int, payload: WorkflowUpdate, workflows: Workflows):
     wf = workflows.update(workflow_id, **payload.model_dump(exclude_unset=True))

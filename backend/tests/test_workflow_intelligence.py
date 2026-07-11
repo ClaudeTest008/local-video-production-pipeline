@@ -69,3 +69,44 @@ def test_workflow_stats(client):
         assert entry["name"] == "stat-wf"
     finally:
         app.dependency_overrides.pop(get_client, None)
+
+
+# --- dependency analysis (pure) -------------------------------------------
+
+from app.modules.workflows.service import analyze_dependencies  # noqa: E402
+
+# object_info: KSampler + a checkpoint loader offering one installed model
+_OBJECT_INFO = {
+    "KSampler": {"input": {"required": {"seed": ["INT", {}]}}},
+    "CheckpointLoaderSimple": {
+        "input": {"required": {"ckpt_name": [["model_a.safetensors"], {}]}}
+    },
+}
+
+
+def test_analyze_dependencies_flags_missing_node_and_model():
+    graph = {
+        "1": {"class_type": "KSampler", "inputs": {}},
+        "2": {"class_type": "FooCustomNode", "inputs": {}},  # not registered
+        "3": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "gone.safetensors"}},
+    }
+    deps = analyze_dependencies(graph, _OBJECT_INFO)
+    assert deps["missing_nodes"] == ["FooCustomNode"]
+    assert deps["missing_models"] == ["gone.safetensors"]
+    assert deps["renderable"] is False
+
+
+def test_analyze_dependencies_basename_match_avoids_false_positive():
+    # workflow references the model via a subfolder path; server lists the bare
+    # filename — must count as present, not missing.
+    graph = {
+        "1": {"class_type": "KSampler", "inputs": {}},
+        "3": {
+            "class_type": "CheckpointLoaderSimple",
+            "inputs": {"ckpt_name": "sd15/model_a.safetensors"},
+        },
+    }
+    deps = analyze_dependencies(graph, _OBJECT_INFO)
+    assert deps["missing_models"] == []
+    assert deps["missing_nodes"] == []
+    assert deps["renderable"] is True

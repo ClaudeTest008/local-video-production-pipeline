@@ -181,6 +181,10 @@ export class ApiClient {
 
   health = () => this.get<{ status: string; app: string }>("/health");
   systemHealth = () => this.get<SystemHealth>("/system/health");
+  systemDetect = () => this.get<Record<string, any>>("/system/detect");
+  setupStatus = () => this.get<{ complete: boolean }>("/system/setup/status");
+  setupComplete = (body: { default_chat_provider?: string; default_chat_model?: string }) =>
+    this.post<{ complete: boolean }>("/system/setup/complete", body);
 }
 
 interface Timestamped {

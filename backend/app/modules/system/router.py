@@ -39,6 +39,48 @@ def _comfy_health() -> dict:
     return health
 
 
+@router.get("/detect")
+def detect() -> dict:
+    """Full dependency scan for the setup wizard (slow-ish: probes every tool)."""
+    from app.modules.system.detect import detect_all
+
+    return detect_all()
+
+
+@router.get("/setup/status")
+def setup_status(db: DB) -> dict:
+    from app.modules.settings import service as settings_service
+
+    return {"complete": bool(settings_service.get_value(db, "setup_complete", False))}
+
+
+@router.post("/setup/complete")
+def setup_complete(payload: dict, db: DB) -> dict:
+    """Persist wizard choices + intelligent defaults; mark setup done."""
+    from app.modules.settings import service as settings_service
+    from app.modules.system.detect import detect_all
+
+    detected = detect_all()
+    provider = payload.get("default_chat_provider") or (
+        "ollama" if detected["ollama"]["found"] else ""
+    )
+    model = payload.get("default_chat_model") or (
+        (detected["ollama"].get("models") or [""])[0] if detected["ollama"]["found"] else ""
+    )
+    if provider:
+        settings_service.set_value(db, "default_chat_provider", provider)
+    if model:
+        settings_service.set_value(db, "default_chat_model", model)
+    settings_service.set_value(db, "workflow_hint", detected["workflow_hint"])
+    settings_service.set_value(db, "setup_complete", True)
+    return {
+        "complete": True,
+        "default_chat_provider": provider,
+        "default_chat_model": model,
+        "workflow_hint": detected["workflow_hint"],
+    }
+
+
 @router.get("/health")
 def health(db: DB) -> dict:
     providers = []

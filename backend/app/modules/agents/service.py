@@ -44,9 +44,15 @@ def run_agent(
     chat += [ChatMessage(m.role, m.content) for m in history]
     chat.append(ChatMessage("user", user_input))
 
-    # precedence: agent profile → caller override (e.g. brand preference) → app default
-    provider_name = agent.provider or provider_override or settings.default_chat_provider
-    model = agent.model or model_override or settings.default_chat_model
+    # precedence: agent profile → caller override (brand) → wizard-set default → env default
+    from app.modules.settings import service as settings_service
+
+    runtime_provider = settings_service.get_value(db, "default_chat_provider")
+    runtime_model = settings_service.get_value(db, "default_chat_model")
+    provider_name = (
+        agent.provider or provider_override or runtime_provider or settings.default_chat_provider
+    )
+    model = agent.model or model_override or runtime_model or settings.default_chat_model
     provider = ai_registry.get_provider(provider_name)
     response = provider.chat(chat, model=model, temperature=agent.temperature)
 

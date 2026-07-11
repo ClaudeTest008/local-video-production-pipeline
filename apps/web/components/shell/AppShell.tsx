@@ -5,7 +5,7 @@ import { api } from "@lvpp/shared";
 import { Kbd } from "@lvpp/ui";
 import { MessageSquare } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { NAV } from "@/lib/nav";
@@ -85,8 +85,20 @@ function StatusBar() {
   );
 }
 
+function useFirstRunRedirect() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const setup = useQuery({ queryKey: ["setup"], queryFn: api.setupStatus, staleTime: 60_000 });
+  useEffect(() => {
+    if (setup.data && !setup.data.complete && pathname !== "/setup") {
+      router.replace("/setup");
+    }
+  }, [setup.data, pathname, router]);
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { paletteOpen, setPaletteOpen, chatPanelOpen } = useStudio();
+  useFirstRunRedirect();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

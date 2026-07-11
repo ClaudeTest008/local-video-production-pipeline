@@ -316,10 +316,21 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
         while job.status == "queued" and time.time() < deadline:
             time.sleep(5)
             job = comfy_service.refresh_job(db, client, job)
+        # one timeline clip per scene: workflows often carry several output
+        # nodes for the same render (two SaveVideo copies + a VHS mux), and
+        # SaveVideo reports its mp4 under /history's "images" key — importing
+        # every output as a clip would repeat each scene several times.
+        scene_clip: str | None = None
+        seen_files: set[str] = set()
         for output in job.outputs or []:
+            filename = output.get("filename") or ""
+            if filename in seen_files:
+                continue  # duplicate output node pointing at the same file
+            seen_files.add(filename)
+            is_video_file = filename.lower().endswith((".mp4", ".webm", ".mkv", ".mov"))
             kind = (
                 "video"
-                if output.get("kind") in ("videos", "gifs")
+                if output.get("kind") in ("videos", "gifs") or is_video_file
                 else ("audio" if output.get("kind") == "audio" else "image")
             )
             dest_dir = (
@@ -334,8 +345,10 @@ def _stage_video(db: Session, project: Project, context: str) -> str:
                 continue
             assets_repo.create(project_id=project.id, kind=kind, path=path, source="comfyui")
             imported += 1
-            if kind in ("video", "image"):
-                clips.append({"path": path, "duration": (job.meta or {}).get("duration_s")})
+            if kind in ("video", "image") and scene_clip is None:
+                scene_clip = path
+        if scene_clip is not None:
+            clips.append({"path": scene_clip, "duration": (job.meta or {}).get("duration_s")})
 
     unfinished = sum(1 for j in jobs if j.status == "queued")
     if not clips and not unfinished:

@@ -1,7 +1,12 @@
 """Backend acceptance driver: run every pipeline stage for one project against
 the real providers, logging stage status/timing and produced assets. Not the
 installed GUI (tooling limit) — the same service the GUI calls."""
+import io
+import sys
 import time
+
+# Windows console defaults to cp1252; stage details may contain emoji
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 from app.core.db import init_db, SessionLocal
 from app.core.repository import Repository

@@ -45,13 +45,29 @@ def build_concat_command(
         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}"
     )
     filters = "".join(f"[{i}:v]{scale}[v{i}];" for i in range(n))
-    concat_in = "".join(f"[v{i}]" for i in range(n))
-    chain = f"{filters}{concat_in}concat=n={n}:v=1:a=0[cat]"
+    # Carry audio through when every clip is a video (AV workflows put the
+    # voice/lip-sync track inside each rendered clip — dropping it silenced the
+    # final export). ponytail: a mix of stills and videos still exports silent;
+    # per-lane synthesized silence if that combination ever matters.
+    paths = [c["path"] if isinstance(c, dict) else c for c in clips]
+    with_audio = not any(p.lower().endswith(IMAGE_EXTS) for p in paths)
+    if with_audio:
+        filters += "".join(
+            f"[{i}:a]aformat=sample_rates=48000:channel_layouts=stereo[a{i}];" for i in range(n)
+        )
+        concat_in = "".join(f"[v{i}][a{i}]" for i in range(n))
+        chain = f"{filters}{concat_in}concat=n={n}:v=1:a=1[cat][acat]"
+    else:
+        concat_in = "".join(f"[v{i}]" for i in range(n))
+        chain = f"{filters}{concat_in}concat=n={n}:v=1:a=0[cat]"
     if subtitles_path:
         chain += f";[cat]subtitles='{_subtitles_filter_path(subtitles_path)}'[out]"
     else:
         chain = chain.replace("[cat]", "[out]")
-    cmd += ["-filter_complex", chain, "-map", "[out]", output]
+    cmd += ["-filter_complex", chain, "-map", "[out]"]
+    if with_audio:
+        cmd += ["-map", "[acat]", "-c:a", "aac"]
+    cmd += [output]
     return cmd
 
 

@@ -168,6 +168,10 @@ def select_workflow(
 
     candidates.sort(
         key=lambda wf: (
+            # a workflow ComfyUI already rejected sinks to last-resort so we don't
+            # keep re-picking a known-broken one across runs (still selectable if
+            # it's the only option — its status can be stale)
+            wf.meta.get("conversion_status") == "failed",
             not wf.favorite,
             TYPE_PRIORITY.get(wf.wf_type, 9),
             -(wf.id or 0),

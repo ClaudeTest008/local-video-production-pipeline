@@ -215,3 +215,23 @@ def test_selection_prefers_renderable_over_newer_unready(client, monkeypatch):
     pick = client.get("/api/workflows/selection").json()
     assert pick["workflow_id"] == broken["id"]
     assert "MissingVideoNode" in pick["note"]
+
+
+def test_selection_deprioritizes_recorded_failed(client):
+    for wf in client.get("/api/workflows").json():
+        client.delete(f"/api/workflows/{wf['id']}")
+    good = client.post(
+        "/api/workflows/upload",
+        json={"name": "good-vid", "workflow": {"1": {"class_type": "SaveVideo", "inputs": {}}}},
+    ).json()
+    # newer, but ComfyUI already rejected it -> recorded failed
+    failed = client.post(
+        "/api/workflows/upload",
+        json={"name": "failed-vid", "workflow": {"1": {"class_type": "SaveVideo", "inputs": {}}}},
+    ).json()
+    client.patch(f"/api/workflows/{failed['id']}", json={"meta": {"conversion_status": "failed"}})
+
+    # no object_info (ComfyUI unavailable in tests) — pure recency would pick the
+    # newer 'failed' one; the failed marker must sink it below the good one
+    pick = client.get("/api/workflows/selection").json()
+    assert pick["workflow_id"] == good["id"]
